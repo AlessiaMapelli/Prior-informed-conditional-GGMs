@@ -7,7 +7,7 @@ str(covariates)
 covariates$x3 <- as.factor(covariates$x3)
 
 ########################################
-## 1. Check the sequential implementation
+## 1. Check the precision matrix estimation implementation
 ########################################
 res <- GGReg_cov_estimation_sequential(
   Z0,
@@ -250,7 +250,11 @@ res_slurm <- GGReg_cov_estimation_SLURM(
 plot_personalized_network(res_slurm$Dic_adj_matrics$Baseline)
 plot_personalized_network(res$Dic_adj_matrics$Baseline)
 
+########################################
+## 1. Check full implementation
+########################################
 
+source("ggReg_main_functions.R")
 res <- GGReg_full_estimation(
   Z0,
   known_ppi = known_ppi,
@@ -272,3 +276,16 @@ res <- GGReg_full_estimation(
   symm_method ="OR",
   verbose = TRUE) 
 res$additional_info$dummy_params
+new_subject <- data.frame(x1 =c(0.723269,0.22451) , x2 = c(0.22451,0.723269), x3 = c(1,0))
+new_subject$x3 <- as.factor(new_subject$x3)
+str(new_subject)
+new_pers_networks <- predict_personalized_network(
+  Dic_Delta_hat= res$results$Dic_adj_matrics,
+  new_subject_covariates=new_subject,
+  scaling_params=res$additional_info$scaling_params,
+  dummy_params= res$additional_info$dummy_params,
+  verbose = TRUE
+)
+new_pers_networks
+compare_networks(new_pers_networks$Subject_1, new_pers_networks$Subject_2, method = "correlation")
+plot_network_difference(new_pers_networks$Subject_1, new_pers_networks$Subject_2)

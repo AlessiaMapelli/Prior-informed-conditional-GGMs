@@ -215,18 +215,12 @@ GGReg_full_estimation <- function(
 #' 
 #' @param Dic_Delta_hat Dictionary of covariate-specific adjacency matrices from GGReg estimation
 #'   Should contain: $Baseline, and covariate-specific matrices
-#' @param training_covariates Original covariates used during model training (for scaling reference)
 #' @param new_subject_covariates Data frame with covariates for the new subject (single row or multiple rows)
-#' @param return_scaling_info Whether to return the scaling parameters used (default FALSE)
+#' @param scaling_params List of scaling parameters (means and SDs) used for numerical covariates in training data
+#' @param dummy_params List of dummy coding parameters used for categorical covariates in training data (including original column names and resulting dummy column names)
 #' @param verbose Whether to print detailed information (default FALSE)
 #' 
-#' @return If return_scaling_info = FALSE: 
-#'   - For single subject: personalized adjacency matrix (p x p)
-#'   - For multiple subjects: list of personalized adjacency matrices
-#' @return If return_scaling_info = TRUE: list containing:
-#'   - personalized_network(s): The predicted network(s)
-#'   - scaled_covariates: The scaled and dummy-coded covariates
-#'   - scaling_params: The scaling parameters used (means and SDs)
+#' @return list of personalized adjacency matrices, one per subject
 #'   
 #' @examples
 #' # Single subject prediction
@@ -251,11 +245,9 @@ GGReg_full_estimation <- function(
 #' 
 predict_personalized_network <- function(
   Dic_Delta_hat, 
-  training_covariates = NULL, 
+  new_subject_covariates = NULL,
   scaling_params = NULL,
   dummy_params = NULL,
-  new_subject_covariates = NULL,
-  return_scaling_info = FALSE,
   verbose = FALSE) 
 { 
   if (!is.list(Dic_Delta_hat)) {
@@ -277,103 +269,88 @@ predict_personalized_network <- function(
   
   ## Case 1: No covariates - return baseline network
   
-  if (is.null(new_subject_covariates) || (is.null(training_covariates) && (is.null(scaling_params) || is.null(dummy_params)))) {
+  if (is.null(new_subject_covariates) || is.null(scaling_params) || is.null(dummy_params)) {
     cat("No covariates provided - returning baseline network\n")
     cat("This represents the average network across all subjects\n")
     return(list(baseline_network))
-  }else if (is.null(scaling_params) || is.null(dummy_params)) {
+  }else{
     n_subjects <- nrow(new_subject_covariates)
     if (verbose) {cat("Predicting for", n_subjects, "subject(s)\n")}
-    missing_cols <- setdiff(colnames(training_covariates), colnames(new_subject_covariates))
-    for(missing_cols > 0) {
+    missing_cols <- setdiff(dummy_params$original_colnames, colnames(new_subject_covariates))
+    if(length(missing_cols) > 0) {
       warning("New subject covariates missing column: ", paste(missing_cols, collapse = ", "), ". Setting them to the mean/most numerous class.")
     }
-    new_subject_covariates <- new_subject_covariates[, colnames(training_covariates), drop = FALSE]
-
-    selected
-  }
-  
-  
-  # Check that new subject has same covariates as training
-  missing_cols <- setdiff(colnames(training_covariates), colnames(new_subject_covariates))
-  if (length(missing_cols) > 0) {
-    stop("New subject covariates missing columns: ", paste(missing_cols, collapse = ", "))
-  }
-  new_subject_covariates <- new_subject_covariates[, colnames(training_covariates), drop = FALSE]
-  
-  # Compute scaling parameters from training data
-  numeric_columns <- sapply(training_covariates, is.numeric)
-  scaling_params <- list() 
-  if (any(numeric_columns)) {
-    for (col in colnames(training_covariates)[numeric_columns]) {
-      scaling_params[[col]] <- list(
-        mean = mean(training_covariates[[col]], na.rm = TRUE),
-        sd = sd(training_covariates[[col]], na.rm = TRUE)
-      )
+    new_subject_covariates <- new_subject_covariates[, dummy_params$original_colnames, drop = FALSE]
+    if (verbose && length(scaling_params) > 0) {
+      cat("\nScaling parameters from training data:\n")
+      for (col in names(scaling_params)) {
+        cat("  ", col, ": mean =", round(scaling_params[[col]]$mean, 4), 
+            ", sd =", round(scaling_params[[col]]$sd, 4), "\n")
+      }
     }
-  }
-  if (verbose && length(scaling_params) > 0) {
-    cat("\nScaling parameters from training data:\n")
+    C_new <- data.frame(matrix(NA, n_subjects, length(dummy_params$dummy_colnames)))
+    is_numeric <- rep(NA,length(dummy_params$dummy_colnames) )
+    colnames(C_new) <- dummy_params$dummy_colnames
+    names(is_numeric) <- dummy_params$dummy_colnames
     for (col in names(scaling_params)) {
-      cat("  ", col, ": mean =", round(scaling_params[[col]]$mean, 4), 
-          ", sd =", round(scaling_params[[col]]$sd, 4), "\n")
-    }
-  }
-  
-  # Apply same scaling to new subject(s)  
-  new_covariates_scaled <- new_subject_covariates
-  for (col in names(scaling_params)) {
-    if (col %in% colnames(new_covariates_scaled)) {
-      new_covariates_scaled[[col]] <- (new_covariates_scaled[[col]] - scaling_params[[col]]$mean) / 
+      if (col %in% colnames(new_subject_covariates)) {
+        C_new[[col]] <- (new_subject_covariates[[col]] - scaling_params[[col]]$mean) / 
                                       scaling_params[[col]]$sd
+        is_numeric[col] <- TRUE
+      }
     }
-  }
-  if (verbose && length(scaling_params) > 0) {
-    cat("\nScaled new subject covariates:\n")
-    print(head(new_covariates_scaled))
-  }
-  C_new <- model.matrix(~ ., data = new_covariates_scaled)
-  if (verbose) {
-    cat("\nModel matrix for new subject(s):\n")
-    cat("Columns:", colnames(C_new), "\n")
-  }
-  
-  # Predict pesonalized network for single or multiple subjects
-  personalized_net <- list()
-  for(j in 1:nrow(C_new)){
-    if (verbose) {
-      cat(" Estimating the personalized network for subject", j, "\n")
+    if (verbose && length(scaling_params) > 0) {
+      cat("\nScaled new subject covariates:\n")
+      print(head(C_new))
+    }
+    col_to_dummy <- setdiff(dummy_params$original_colnames, dummy_params$dummy_colnames)
+    for(col in col_to_dummy) {
+      if (col %in% colnames(new_subject_covariates)) {
+          dummies <- dummy_params$dummy_colnames[grepl(paste0("^", col), dummy_params$dummy_colnames)]
+          for (dummy_col in dummies) {
+            C_new[[dummy_col]] <- ifelse(new_subject_covariates[[col]] == sub(paste0("^", col),"",dummy_col), 1, 0)
+            is_numeric[dummy_col] <- FALSE
+          }
       }
-    covariate_row <- C_new[j, ]
-    signle_personalized_net <- baseline_network
-    for (i in 2:length(covariate_row)) {  # Skip intercept (i=1)
-      covariate_name <- colnames(C_new)[i]
-      covariate_value <- covariate_row[i]
-      if (covariate_name %in% names(Dic_Delta_hat)) {
-        signle_personalized_net <- signle_personalized_net + covariate_value * Dic_Delta_hat[[covariate_name]]
-        if (verbose) {
-          cat("  Adding effect of", covariate_name, "with value", 
-              round(covariate_value, 4), "\n")
+    }
+    if (verbose && length(col_to_dummy) > 0) {
+      cat("\nDummy coded new subject covariates:\n")
+      print(head(C_new))
+    }
+
+    # Predict pesonalized network for single or multiple subjects
+    personalized_net <- list()
+    for(j in 1:nrow(C_new)){
+      if (verbose) {
+        cat(" Estimating the personalized network for subject", j, "\n")
         }
-      } else {
-        if (verbose) {
-          warning("Covariate '", covariate_name, "' not found in Dic_Delta_hat. Skipping.")
+      covariate_row <- C_new[j, ]
+      signle_personalized_net <- baseline_network
+      for (i in 1:length(covariate_row)) {
+        covariate_name <- colnames(C_new)[i]
+        covariate_value <- as.numeric(covariate_row[i])
+        if (covariate_name %in% names(Dic_Delta_hat)) {
+          if(is_numeric[covariate_name]){
+            if (verbose) {
+              cat("  Adding effect of numeric covariate", covariate_name, "with value", covariate_value, "\n")
+            }
+            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_Delta_hat[[covariate_name]]
+          } else {
+            if (verbose && covariate_value == 1) {
+              cat("  Adding effect of categorical covariate", covariate_name, "\n")
+            }
+            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_Delta_hat[[covariate_name]]
+          }
+        } else {
+          if (verbose) {
+            warning("Covariate '", covariate_name, "' not found in Dic_Delta_hat. Skipping.")
+          }
         }
+        personalized_net[[j]] <- signle_personalized_net
       }
-      personalized_net[[j]] <- signle_personalized_net
     }
     names(personalized_net) <- paste0("Subject_", 1:n_subjects)
-  }
-  
-  if (return_scaling_info) {
-    return(list(
-      personalized_network = personalized_net,
-      scaled_covariates = as.data.frame(C_new),
-      scaling_params = scaling_params,
-      baseline_network = baseline_network
-    ))
-  } else {
-    return(list(personalized_network = personalized_net))
+    return(personalized_net)
   }
 }
 
@@ -874,7 +851,10 @@ GGReg_cov_single_node_processing <- function(
         )
     }
     C <- model.matrix(~ ., covariates)
-    dummy_params <- colnames(C)
+    dummy_params <- list(
+      original_colnames = colnames(covariates),
+      dummy_colnames = colnames(C)[-1]  # Exclude intercept
+    )
     q <- ncol(C) - 1
     iU <- C
   }
