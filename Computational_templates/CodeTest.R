@@ -1,8 +1,10 @@
-setwd("/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Code_git/4.Method_implementation")
+setwd("/group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-informed-conditional-GGMs/Computational_templates")
 rm(list=ls(all=TRUE))
 source("ggReg_main_functions.R")
 
 load("/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Example_data/n200_p10_q3_noisy_OR/rep1/input_data_nodes.rda")
+str(covariates)
+covariates$x3 <- as.factor(covariates$x3)
 
 ########################################
 ## 1. Check the sequential implementation
@@ -247,3 +249,26 @@ res_slurm <- GGReg_cov_estimation_SLURM(
   verbose = TRUE) 
 plot_personalized_network(res_slurm$Dic_adj_matrics$Baseline)
 plot_personalized_network(res$Dic_adj_matrics$Baseline)
+
+
+res <- GGReg_full_estimation(
+  Z0,
+  known_ppi = known_ppi,
+  covariates = covariates,
+  scr = FALSE,
+  gamma = NULL,
+  mean_estimation = FALSE,
+  lambda_prec = NULL,
+  lambda_prec_type = "min",
+  tune_hyperparams = TRUE,
+  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
+  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  random_hyper_search = FALSE,
+  p.rand.hyper = NULL,
+  K = 5,
+  use_slurm = FALSE,
+  output_path = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Example_data/n200_p10_q3_noisy_OR/rep1/results_sequential/",
+  name_output = "ggReg_result",
+  symm_method ="OR",
+  verbose = TRUE) 
+res$additional_info$dummy_params

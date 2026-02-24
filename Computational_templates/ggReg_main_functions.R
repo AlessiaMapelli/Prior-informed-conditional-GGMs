@@ -50,6 +50,10 @@ library(foreach)
 #'       \item{Dic_Delta_hat}{Dictionary of symmetrized precision matrices estimation for each node.}
 #'       \item{Dic_adj_matrics}{Dictionary of symmetrized weighted adjacency matrices estimation for each node reporting partial correlation between nodes.}
 #'       \item{optimal_params}{Data frame of optimal hyperparameters (asparse, weight) and BIC score for each node.}
+#'       \item{computational_time_per_node}{Vector of computational time taken for estimation of each node.}
+#'       \item{total_computational_time}{Total computational time taken for the entire estimation process.}
+#'       \item{scaling_params}{List of scaling parameters (means and SDs) used for numerical covariates.}
+#'       \item{dummy_params}{List of dummy coding parameters used for categorical covariates.}
 #'     }
 #' 
 #'
@@ -84,9 +88,10 @@ GGReg_full_estimation <- function(
 {
   if (verbose) {
     cat("=== Starting GGReg Full Estimation ===\n")
-    cat("Estimating the mean\n")
   }
+  time.start <- Sys.time()
   if(mean_estimation){
+    if (verbose) {cat("Estimating the mean\n")}
     # Step 1: Estimate mean
     res_mean_reg <- GGReg_mean_estimation(
       x = x,
@@ -95,13 +100,13 @@ GGReg_full_estimation <- function(
       lambda_mean_type = lambda_mean_type,
       verbose = verbose)
     Z <- res_mean_reg$z
+    if (verbose) {cat("Done estimating the mean\n")}
   }else{Z <- x}
-  if (verbose) {
-    cat("Done estimating the mean\n")
-    cat("Estimating the precision matrix with SLURM parallelization over nodes\n")
-  }
   # Step 2: Estimate precision matrix with node-wise SLURM parallelization
   if (use_slurm) {
+    if (verbose) {
+      cat("Estimating the precision matrix with SLURM parallelization over nodes\n")
+    }
     # Use SLURM array jobs - one job per node i
     res_cov_reg <- GGReg_cov_estimation_SLURM(
       Z0 = Z,
@@ -124,6 +129,9 @@ GGReg_full_estimation <- function(
       verbose = verbose)
   } else { 
     if(ncol(Z)>150){
+    if (verbose) {
+      cat("Estimating the precision matrix with R parallelization via foreach over nodes\n")
+    }
     # Fallback to the R parallelization via foreach
     res_cov_reg <- GGReg_cov_estimation_parallel(
       Z0 = Z,
@@ -139,12 +147,14 @@ GGReg_full_estimation <- function(
       random_hyper_search=random_hyper_search,
       p.rand.hyper = p.rand.hyper,
       K = K,
-      slurm_script_path = slurm_script_path,
       output_path = output_path,
       name_output = name_output,
       symm_method = symm_method,
       verbose = verbose) 
     } else {
+      if (verbose) {
+        cat("Estimating the precision matrix sequentially over nodes\n")
+      }
       res_cov_reg <- GGReg_cov_estimation_sequential(
       Z0 = Z,
       known_ppi = known_ppi,
@@ -159,7 +169,6 @@ GGReg_full_estimation <- function(
       random_hyper_search=random_hyper_search,
       p.rand.hyper = p.rand.hyper,
       K = K,
-      slurm_script_path = slurm_script_path,
       output_path = output_path,
       name_output = name_output,
       symm_method = symm_method,
@@ -170,18 +179,26 @@ GGReg_full_estimation <- function(
     cat("Done estimating the precision matrix\n")
     cat("=== GGReg Full Estimation Complete ===\n")
   }
-
-  results <- list(
+  if(mean_estimation){
+    results <- list(
     Cov_effect = res_mean_reg$Cov_effect,
-    Dic_adj_matrics = res_cov_reg$Dic_adj_matrics
-  )
+    Dic_adj_matrics = res_cov_reg$Dic_adj_matrics)
+  }else{
+    results <- list(
+    Cov_effect = NULL,
+    Dic_adj_matrics = res_cov_reg$Dic_adj_matrics)
+  }
   additional_info <- list(
-    z = res_mean_reg$z,
+    z = Z,
     Prec_reg_matrix = res_cov_reg$Prec_reg_matrix,
     No_sim_Delta_hat = res_cov_reg$No_sim_Delta_hat,
     Sigma_hat = res_cov_reg$Sigma_hat,
     Dic_Delta_hat = res_cov_reg$Dic_Delta_hat,
-    optimal_params = res_cov_reg$optimal_params
+    optimal_params = res_cov_reg$optimal_params,
+    computational_time_per_node = res_cov_reg$computational_time_per_node,
+    total_computational_time = difftime(Sys.time(), time.start, units = "mins"),
+    scaling_params = res_cov_reg$scaling_params,
+    dummy_params = res_cov_reg$dummy_params
   )
   return(list(results = results, additional_info = additional_info))
 }
@@ -235,16 +252,16 @@ GGReg_full_estimation <- function(
 predict_personalized_network <- function(
   Dic_Delta_hat, 
   training_covariates = NULL, 
+  scaling_params = NULL,
+  dummy_params = NULL,
   new_subject_covariates = NULL,
   return_scaling_info = FALSE,
   verbose = FALSE) 
 { 
-  # Input Validation
   if (!is.list(Dic_Delta_hat)) {
     stop("Dic_Delta_hat must be a list containing adjacency matrices")
   }
-  
-  # Check for required baseline matrix
+
   baseline_key <- "Baseline"
   if (!(baseline_key %in% names(Dic_Delta_hat))) {
     stop("Dic_Delta_hat must contain the 'Baseline' network")
@@ -260,28 +277,22 @@ predict_personalized_network <- function(
   
   ## Case 1: No covariates - return baseline network
   
-  if (is.null(training_covariates) || is.null(new_subject_covariates)) {
-    if (verbose) {
-      cat("No covariates provided - returning baseline network\n")
-      cat("This represents the average network across all subjects\n")
+  if (is.null(new_subject_covariates) || (is.null(training_covariates) && (is.null(scaling_params) || is.null(dummy_params)))) {
+    cat("No covariates provided - returning baseline network\n")
+    cat("This represents the average network across all subjects\n")
+    return(list(baseline_network))
+  }else if (is.null(scaling_params) || is.null(dummy_params)) {
+    n_subjects <- nrow(new_subject_covariates)
+    if (verbose) {cat("Predicting for", n_subjects, "subject(s)\n")}
+    missing_cols <- setdiff(colnames(training_covariates), colnames(new_subject_covariates))
+    for(missing_cols > 0) {
+      warning("New subject covariates missing column: ", paste(missing_cols, collapse = ", "), ". Setting them to the mean/most numerous class.")
     }
-    
-    if (return_scaling_info) {
-      return(list(
-        personalized_network = baseline_network,
-        scaled_covariates = NULL,
-        scaling_params = NULL
-      ))
-    } else {
-      return(baseline_network)
-    }
+    new_subject_covariates <- new_subject_covariates[, colnames(training_covariates), drop = FALSE]
+
+    selected
   }
   
-  ## Case 2: Covariates provided - compute personalized network
-  n_subjects <- nrow(new_subject_covariates)
-  if (verbose) {
-    cat("Predicting for", n_subjects, "subject(s)\n")
-  }
   
   # Check that new subject has same covariates as training
   missing_cols <- setdiff(colnames(training_covariates), colnames(new_subject_covariates))
@@ -845,6 +856,8 @@ GGReg_cov_single_node_processing <- function(
   #################################################
   ## Setup Covariates and Design Matrix
   #################################################
+  scaling_params <- list() 
+  dummy_params <- NULL
 
   if (is.null(covariates)) {
     C <- data.frame(Zeros = rep(0, n))
@@ -854,7 +867,14 @@ GGReg_cov_single_node_processing <- function(
   } else {
     numeric_columns <- sapply(covariates, is.numeric)
     covariates[, numeric_columns] <- scale(covariates[, numeric_columns])
+    for (col in colnames(covariates)[numeric_columns]) {
+        scaling_params[[col]] <- list(
+          mean = mean(covariates[[col]], na.rm = TRUE),
+          sd = sd(covariates[[col]], na.rm = TRUE)
+        )
+    }
     C <- model.matrix(~ ., covariates)
+    dummy_params <- colnames(C)
     q <- ncol(C) - 1
     iU <- C
   }
@@ -979,7 +999,7 @@ GGReg_cov_single_node_processing <- function(
       asparse_val <- param_combinations$asparse[idx]
       weight_val <- param_combinations$weight[idx]
       
-      if (idx %% 5 == 1) {
+      if (idx %% 5 == 1 && verbose) {
         cat("Testing asparse =", asparse_val, ", weight =", weight_val, 
             "(", idx, "of", nrow(param_combinations), ")\n")
       }
@@ -1066,7 +1086,9 @@ GGReg_cov_single_node_processing <- function(
           col_names = colnames(interM),
           row_names = colnames(Z0),
           groups = groups,
-          U_names = U_names
+          U_names = U_names,
+          scaling_params = scaling_params,
+          dummy_params = dummy_params
         )
 
         cat("Saving best results so far for node", i, "...\n")
@@ -1159,12 +1181,14 @@ GGReg_cov_single_node_processing <- function(
       No_sim_Delta_hat_row = No_sim_Delta_hat_row,
       sigma = sigma,
       optimal_params = optimal_params,
-      computation_time = Sys.time() - time.start,
+      computation_time = difftime(Sys.time(), time.start, units = "mins"),
       # Save metadata for result collection
       col_names = colnames(interM),
       row_names = colnames(Z0),
       groups = groups,
-      U_names = U_names
+      U_names = U_names,
+      scaling_params = scaling_params,
+      dummy_params = dummy_params
     )
 
     output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
@@ -1197,6 +1221,9 @@ GGReg_cov_single_node_processing <- function(
 #'   \item{Dic_Delta_hat}{Dictionary of symmetrized precision matrices estimation for each node.}
 #'   \item{Dic_adj_matrics}{Dictionary of symmetrized weighted adjacency matrices estimation for each node reporting partial correlation between nodes.}
 #'   \item{optimal_params}{Data frame of optimal hyperparameters (asparse, weight) and BIC score for each node.}
+#'   \item{computational_time_per_node}{Vector of computational times for each node.}
+#'   \item{scaling_params}{List of scaling parameters (mean and sd) for numeric covariates used in the model.}
+#'   \item{dummy_params}{Vector of names for dummy variables created from categorical covariates.}
 #'
 #' @description
 #' This function aggregates the outputs from node-wise regression estimation procedures, combining them into unified results for further analysis in the GGReg model.
@@ -1221,6 +1248,9 @@ collect_node_results <- function(
   Sigma_hat <- rep(1, p)
   No_sim_Delta_hat <- matrix(0, p, n_cols)
   optimal_params <- data.frame(node = 1:p, asparse = NA, weight = NA, bic_score = NA)
+  computational_time <- rep(0, p)
+  scaling_params <- node_result$scaling_params
+  dummy_params <- node_result$dummy_params
   successful_nodes <- 0
   for (i in 1:p) {
     result_file <- paste0(output_path, name_output, "_node_", i, ".rda")
@@ -1234,6 +1264,10 @@ collect_node_results <- function(
         if (!is.null(node_result$optimal_params)) {
           optimal_params[i, c("asparse", "weight", "bic_score")] <- 
             node_result$optimal_params[c("asparse", "weight", "bic_score")]
+        }
+
+        if (!is.null(node_result$computation_time)) {
+          computational_time[i] <- node_result$computation_time
         }
         
         successful_nodes <- successful_nodes + 1
@@ -1287,7 +1321,10 @@ collect_node_results <- function(
     Sigma_hat = Sigma_hat,
     Dic_Delta_hat = Dic_Delta_hat,
     Dic_adj_matrics = Dic_adj_matrics,
-    optimal_params = optimal_params
+    optimal_params = optimal_params,
+    computational_time_per_node = computational_time,
+    scaling_params = scaling_params,
+    dummy_params = dummy_params
   ))
 }
 
