@@ -289,3 +289,53 @@ new_pers_networks <- predict_personalized_network(
 new_pers_networks
 compare_networks(new_pers_networks$Subject_1, new_pers_networks$Subject_2, method = "correlation")
 plot_network_difference(new_pers_networks$Subject_1, new_pers_networks$Subject_2)
+
+########################################
+## 1. Usage example
+########################################
+
+set.seed(123)
+n <- 1000  # number of samples
+p <- 3   # number of features (nodes)
+q <- 2    # number of covariates
+# Generate synthetic expression data
+X <- matrix(rnorm(n * p), n, p)
+colnames(X) <- paste0("Gene_", 1:p)
+# Generate synthetic covariates
+covariates <- data.frame(
+  age = rnorm(n, mean = 50, sd = 10),
+  sex = rbinom(n, 1, 0.5)
+)
+covariates$sex <- as.factor(ifelse(covariates$sex,"Male", "Female"))
+
+# Optional: Prior knowledge network (PPI)
+known_ppi <- matrix(0, p, p)
+known_ppi[1:2, 1:2] <- 0.3
+diag(known_ppi) <- 0
+
+source("ggReg_main_functions.R")
+
+results <- GGReg_full_estimation(
+  x = X,
+  known_ppi = known_ppi,
+  covariates = covariates)
+
+new_subject <- data.frame(age = 45, sex = as.factor("Female"))
+pred_net <- predict_personalized_network(
+  Dic_Delta_hat = results$results$Dic_adj_matrics,
+  new_subject_covariates = new_subject,
+  scaling_params = results$additional_info$scaling_params,
+  dummy_params = results$additional_info$dummy_params
+)
+
+new_subjects <- data.frame(
+ age = c(45, 30, 60),
+ sex = as.factor(c("Female", "Male", "Female"))
+)
+pred_nets <- predict_personalized_network(
+ Dic_Delta_hat = results$results$Dic_adj_matrics,
+ new_subject_covariates = new_subjects,
+ scaling_params = results$additional_info$scaling_params,
+ dummy_params = results$additional_info$dummy_params
+)
+

@@ -61,6 +61,34 @@ library(foreach)
 #' This function estimates the parameters of the GGReg model using the provided observed data and external covariates. 
 #' It first performs mean estimation, and then estimates the precision matrix using either SLURM-based parallelization or a fallback method depending on the number of features. The function also includes options for hyperparameter tuning and screening to improve estimation efficiency.
 #' It returns the estimated coefficients, fitted values, residuals, and convergence status.
+#' 
+#' @examples
+#' set.seed(123)
+#' n <- 1000  # number of samples
+#' p <- 3   # number of features (nodes)
+#' q <- 2    # number of covariates
+#' # Generate synthetic expression data
+#' X <- matrix(rnorm(n * p), n, p)
+#' colnames(X) <- paste0("Gene_", 1:p)
+#' # Generate synthetic covariates
+#' covariates <- data.frame(
+#'   age = rnorm(n, mean = 50, sd = 10),
+#'   sex = rbinom(n, 1, 0.5)
+#' )
+#' covariates$sex <- as.factor(ifelse(covariates$sex,"Male", "Female"))
+#' 
+#' # Optional: Prior knowledge network (PPI)
+#' known_ppi <- matrix(0, p, p)
+#' known_ppi[1:2, 1:2] <- 0.3
+#' diag(known_ppi) <- 0
+#' 
+#' source("ggReg_main_functions.R")
+#' 
+#' results <- GGReg_full_estimation(
+#'   x = X,
+#'   known_ppi = known_ppi,
+#'   covariates = covariates)
+#' 
 
 GGReg_full_estimation <- function(
   x,
@@ -79,7 +107,7 @@ GGReg_full_estimation <- function(
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
-  use_slurm = TRUE,
+  use_slurm = FALSE,
   slurm_script_path = "./slurm_ggReg_node.sbatch",
   output_path = "./results/",
   name_output = "ggReg_result",
@@ -224,23 +252,24 @@ GGReg_full_estimation <- function(
 #'   
 #' @examples
 #' # Single subject prediction
-#' new_subject <- data.frame(age = 45, sex = "Female", treatment = "B")
+#' new_subject <- data.frame(age = 45, sex = as.factor("Female"))
 #' pred_net <- predict_personalized_network(
-#'   Dic_Delta_hat = results$Dic_Delta_hat,
-#'   training_covariates = original_covariates,
-#'   new_subject_covariates = new_subject
+#'  Dic_Delta_hat = results$results$Dic_adj_matrics,
+#'  new_subject_covariates = new_subject,
+#'  scaling_params = results$additional_info$scaling_params,
+#'  dummy_params = results$additional_info$dummy_params
 #' )
 #' 
 #' # Multiple subjects
 #' new_subjects <- data.frame(
 #'   age = c(45, 30, 60),
-#'   sex = c("Female", "Male", "Female"),
-#'   treatment = c("B", "A", "C")
+#'   sex = as.factor(c("Female", "Male", "Female"))
 #' )
 #' pred_nets <- predict_personalized_network(
-#'   Dic_Delta_hat = results$Dic_Delta_hat,
-#'   training_covariates = original_covariates,
-#'   new_subject_covariates = new_subjects
+#'   Dic_Delta_hat = results$results$Dic_adj_matrics,
+#'   new_subject_covariates = new_subjects,
+#'   scaling_params = results$additional_info$scaling_params,
+#'   dummy_params = results$additional_info$dummy_params
 #' )
 #' 
 predict_personalized_network <- function(
@@ -728,9 +757,12 @@ GGReg_cov_estimation_parallel <- function(
   if (!dir.exists(output_path)) {
     dir.create(output_path, recursive = TRUE)
   }
+
+  output_path <<- output_path
+  name_output <<- name_output
   
   # Save all input data for individual node runs
-  input_data_path <- paste0(output_path, "input_data_nodes.rda")
+  input_data_path <<- paste0(output_path, "input_data_nodes.rda")
   save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
@@ -952,57 +984,115 @@ GGReg_cov_single_node_processing <- function(
 
   if(verbose){cat("Selected", ncol(Xmat), "features for node", i, "\n")}
 
-  #################################################
-  ## Hyperparameter Tuning (if enabled)
-  #################################################
-
-  if (tune_hyperparams && !(length(asparse_grid) == 1 && length(weight_grid) == 1)) {
-    if(verbose){
-    cat("Starting hyperparameter tuning...\n")
-    cat("Grid: asparse =", length(asparse_grid), "values, weight =", length(weight_grid), "values\n")}
-    
-    best_bic <- Inf
-    best_params <- NULL
-    best_result <- NULL
-
-    param_combinations <- expand.grid(asparse = asparse_grid, weight = weight_grid)
-
-    if(random_hyper_search){
-      if(is.null(p.rand.hyper)){
-        p.rand.hyper <- 0.5
-      }
-      set.seed(234+10*i)
-      param_combinations <- param_combinations[sample(1:nrow(param_combinations), size = floor(p.rand.hyper * nrow(param_combinations))), ]
-    }
-    
-    for (idx in 1:nrow(param_combinations)) {
-      asparse_val <- param_combinations$asparse[idx]
-      weight_val <- param_combinations$weight[idx]
-      
-      if (idx %% 5 == 1 && verbose) {
-        cat("Testing asparse =", asparse_val, ", weight =", weight_val, 
-            "(", idx, "of", nrow(param_combinations), ")\n")
-      }
-    
-      # Setup penalty weights
-      w_sparsity <- rep(weight_val, ncol(Xmat))
-      temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
-      #temp_w_sparsity_g1[!one[i,indexes_to_select_penalty]] <- weight_val
-      w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
-      #w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
-    
-      # Fit model with current hyperparameters
+  if(is.null(covariates)){
+    if (is.null(known_ppi)) {
       set.seed(2024)
-      if(is.null(covariates)){
-        if (is.null(lambda_prec)) {
-        set.seed(2024)
+      if (is.null(lambda_prec)) {
         mod <- cv.glmnet(x = as.matrix(Xmat), y = Y, alpha = 1, family = c("gaussian"))
-        } else{
-        set.seed(2024)
+      } else{
         lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
         mod <- cv.glmnet(x = as.matrix(Xmat), y = Y,lambda = lambda_seq, alpha = 1, family = c("gaussian"))
-        }
+      }
+    }else{
+      w_sparsity <- rep(1, ncol(Xmat))
+      temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
+      w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
+      set.seed(2024)
+      if (is.null(lambda_prec)) {
+        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, pf_sparse = w_sparsity, 
+                          asparse = 1, intercept = FALSE, nfolds = K)
       } else {
+        lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
+        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, pf_sparse = w_sparsity, 
+                          asparse = 1, lambda = lambda_seq, 
+                          intercept = FALSE, nfolds = K)
+      }
+    }
+
+    if (lambda_prec_type == "min") {
+      prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
+      best_lambda_prec <- mod$lambda.min
+    } else {
+      prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
+      best_lambda_prec <- mod$lambda.1se
+    }
+
+    # Compute BIC for this model
+    res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
+    df_j <- sum(prec_reg_coeff != 0)
+    sigma <- sum(res.model^2) / (n - df_j)
+
+    best_params <- list(best_lambda_prec = best_lambda_prec, bic_score = bic_score)
+
+    # BIC = n * log(RSS/n) + log(n) * df
+    bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
+
+    Prec_reg_matrix_row <- rep(0, ncol(interM))
+    Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
+
+    No_sim_Delta_hat_row <- rep(0, ncol(interM))
+    No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
+
+    if(verbose){
+      cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
+      cat("  Residual variance:", sigma, "\n")}
+
+    node_result <- list(
+      node_index = i,
+      Prec_reg_matrix_row = Prec_reg_matrix_row,
+      No_sim_Delta_hat_row = No_sim_Delta_hat_row,
+      sigma = sigma,
+      optimal_params = best_params,
+      computation_time = Sys.time() - time.start,
+      # Save metadata for result collection
+      col_names = colnames(interM),
+      row_names = colnames(Z0),
+      groups = groups,
+      U_names = U_names,
+      scaling_params = scaling_params,
+      dummy_params = dummy_params
+    )
+
+    if(verbose){cat("Saving results for node", i, "...\n")}
+
+    output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
+    save(node_result, file = output_file)
+
+  }else{
+    if (tune_hyperparams && !(length(asparse_grid) == 1 && length(weight_grid) == 1)) {
+      if(verbose){
+      cat("Starting hyperparameter tuning...\n")
+      cat("Grid: asparse =", length(asparse_grid), "values, weight =", length(weight_grid), "values\n")}
+      
+      best_bic <- Inf
+      best_params <- NULL
+      best_result <- NULL
+
+      param_combinations <- expand.grid(asparse = asparse_grid, weight = weight_grid)
+
+      if(random_hyper_search){
+        if(is.null(p.rand.hyper)){
+          p.rand.hyper <- 0.5
+        }
+        set.seed(234+10*i)
+        param_combinations <- param_combinations[sample(1:nrow(param_combinations), size = floor(p.rand.hyper * nrow(param_combinations))), ]
+      }
+      for (idx in 1:nrow(param_combinations)) {
+        asparse_val <- param_combinations$asparse[idx]
+        weight_val <- param_combinations$weight[idx]
+        
+        if (idx %% 5 == 1 && verbose) {
+          cat("Testing asparse =", asparse_val, ", weight =", weight_val, 
+              "(", idx, "of", nrow(param_combinations), ")\n")
+        }
+      
+        # Setup penalty weights
+        w_sparsity <- rep(weight_val, ncol(Xmat))
+        temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
+        #temp_w_sparsity_g1[!one[i,indexes_to_select_penalty]] <- weight_val
+        w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
+        #w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
+        set.seed(2024)
         if (is.null(lambda_prec)) {
           mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
                             pf_group = w_group, pf_sparse = w_sparsity, 
@@ -1014,97 +1104,84 @@ GGReg_cov_single_node_processing <- function(
                             asparse = asparse_val, lambda = lambda_seq, 
                             intercept = FALSE, nfolds = K)
         }
+        if (lambda_prec_type == "min") {
+          prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
+          best_lambda_prec <- mod$lambda.min
+        } else {
+          prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
+          best_lambda_prec <- mod$lambda.1se
+        }
+        # Compute BIC for this parameter combination
+        res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
+        df_j <- sum(prec_reg_coeff != 0)
+        sigma <- sum(res.model^2) / (n - df_j)
+      
+        # BIC = n * log(RSS/n) + log(n) * df
+        bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
+      
+        if (bic_score < best_bic) {
+          best_bic <- bic_score
+          best_params <- list(best_lambda_prec = best_lambda_prec, asparse = asparse_val, weight = weight_val, bic_score = bic_score)
+          best_result <- list(prec_reg_coeff = prec_reg_coeff, sigma = sigma, mod = mod)
+
+          if(verbose){
+
+          cat("Current optimal parameters for node", i, ":\n")
+          cat("  asparse =", best_params$asparse, "\n")
+          cat("  weight =", best_params$weight, "\n")
+          cat("  BIC score =", best_params$bic_score, "\n")
+
+          cat("Preparing current best output for node", i, "...\n")}
+
+          # Build full coefficient vector for this node
+          Prec_reg_matrix_row <- rep(0, ncol(interM))
+          Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
+
+          No_sim_Delta_hat_row <- rep(0, ncol(interM))
+          No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
+
+          if(verbose){
+          cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
+          cat("  Residual variance:", sigma, "\n")}
+
+          node_result <- list(
+            node_index = i,
+            Prec_reg_matrix_row = Prec_reg_matrix_row,
+            No_sim_Delta_hat_row = No_sim_Delta_hat_row,
+            sigma = sigma,
+            optimal_params = best_params,
+            computation_time = Sys.time() - time.start,
+            # Save metadata for result collection
+            col_names = colnames(interM),
+            row_names = colnames(Z0),
+            groups = groups,
+            U_names = U_names,
+            scaling_params = scaling_params,
+            dummy_params = dummy_params
+          )
+
+          cat("Saving best results so far for node", i, "...\n")
+
+          output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
+          save(node_result, file = output_file)
+
+        }
+      
       }
-
-      if (lambda_prec_type == "min") {
-        prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
-      } else {
-        prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
-      }
-      
-      # Compute BIC for this parameter combination
-      res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
-      df_j <- sum(prec_reg_coeff != 0)
-      sigma <- sum(res.model^2) / (n - df_j)
-      
-      # BIC = n * log(RSS/n) + log(n) * df
-      bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
-      
-      if (bic_score < best_bic) {
-        best_bic <- bic_score
-        best_params <- list(asparse = asparse_val, weight = weight_val, bic_score = bic_score)
-        best_result <- list(prec_reg_coeff = prec_reg_coeff, sigma = sigma, mod = mod)
-
-        if(verbose){
-
-        cat("Current optimal parameters for node", i, ":\n")
-        cat("  asparse =", best_params$asparse, "\n")
-        cat("  weight =", best_params$weight, "\n")
-        cat("  BIC score =", best_params$bic_score, "\n")
-
-        cat("Preparing current best output for node", i, "...\n")}
-
-        # Build full coefficient vector for this node
-        Prec_reg_matrix_row <- rep(0, ncol(interM))
-        Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
-
-        No_sim_Delta_hat_row <- rep(0, ncol(interM))
-        No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
-
-        if(verbose){
-        cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
-        cat("  Residual variance:", sigma, "\n")}
-
-        node_result <- list(
-          node_index = i,
-          Prec_reg_matrix_row = Prec_reg_matrix_row,
-          No_sim_Delta_hat_row = No_sim_Delta_hat_row,
-          sigma = sigma,
-          optimal_params = best_params,
-          computation_time = Sys.time() - time.start,
-          # Save metadata for result collection
-          col_names = colnames(interM),
-          row_names = colnames(Z0),
-          groups = groups,
-          U_names = U_names,
-          scaling_params = scaling_params,
-          dummy_params = dummy_params
-        )
-
-        cat("Saving best results so far for node", i, "...\n")
-
-        output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
-        save(node_result, file = output_file)
-
-      }
-      
-    }
-    if (is.null(best_result)) {
-      stop("No valid hyperparameter combination found for node ", i)
-    }    
-  } else {
-    # No hyperparameter tuning - use first values from grids
-    asparse_val <- asparse_grid[1]
-    weight_val <- weight_grid[1]
-    if(verbose){
-    cat("Using fixed hyperparameters: asparse =", asparse_val, ", weight =", weight_val, "\n")}
-  
-    # Setup penalty weights
-    w_sparsity <- rep(weight_val, ncol(Xmat))
-    w_sparsity[Xgroup == 1] <- penaltyfactor[i, indexes_to_select_penalty]
-    w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
-  
-    # Fit model
-    if(is.null(covariates)){
-          if (is.null(lambda_prec)) {
-          set.seed(2024)
-          mod <- cv.glmnet(x = as.matrix(Xmat), y = Y, alpha = 1, family = c("gaussian"))
-          } else{
-          set.seed(2024)
-          lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
-          mod <- cv.glmnet(x = as.matrix(Xmat), y = Y,lambda = lambda_seq, alpha = 1, family = c("gaussian"))
-          }
+      if (is.null(best_result)) {
+        stop("No valid hyperparameter combination found for node ", i)
+      }    
     } else {
+      # No hyperparameter tuning - use first values from grids
+      asparse_val <- asparse_grid[1]
+      weight_val <- weight_grid[1]
+      if(verbose){
+      cat("Using fixed hyperparameters: asparse =", asparse_val, ", weight =", weight_val, "\n")}
+    
+      # Setup penalty weights
+      w_sparsity <- rep(weight_val, ncol(Xmat))
+      w_sparsity[Xgroup == 1] <- penaltyfactor[i, indexes_to_select_penalty]
+      w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
       set.seed(2024)
       if (is.null(lambda_prec)) {
         mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
@@ -1117,70 +1194,67 @@ GGReg_cov_single_node_processing <- function(
                           asparse = asparse_val, lambda = lambda_seq, 
                           intercept = FALSE)
       }
-    }
-    if (lambda_prec_type == "min") {
-      prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
-    } else {
-      prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
-    }
+      if (lambda_prec_type == "min") {
+        prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
+        best_lambda_prec <- mod$lambda.min
+      } else {
+        prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
+        best_lambda_prec <- mod$lambda.1se
+      }
 
-    # Compute residuals and variance
-    res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
-    df_j <- sum(prec_reg_coeff != 0)
-    sigma <- sum(res.model^2) / (n - df_j)
+      # Compute residuals and variance
+      res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
+      df_j <- sum(prec_reg_coeff != 0)
+      sigma <- sum(res.model^2) / (n - df_j)
     
-    # BIC for record keeping
-    bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
+      # BIC for record keeping
+      bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
     
-    optimal_params <- list(asparse = asparse_val, weight = weight_val, bic_score = bic_score)
+      optimal_params <- list(best_lambda_prec = best_lambda_prec, asparse = asparse_val, weight = weight_val, bic_score = bic_score)
 
-    if(verbose){cat("Preparing output for node", i, "...\n")}
+      if(verbose){cat("Preparing output for node", i, "...\n")}
 
-    # Build full coefficient vector for this node
-    Prec_reg_matrix_row <- rep(0, ncol(interM))
-    Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
+      # Build full coefficient vector for this node
+      Prec_reg_matrix_row <- rep(0, ncol(interM))
+      Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
 
-    No_sim_Delta_hat_row <- rep(0, ncol(interM))
-    No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
+      No_sim_Delta_hat_row <- rep(0, ncol(interM))
+      No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
 
-    if(verbose){
-    cat("Node", i, "estimation complete:\n")
-    cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
-    cat("  Residual variance:", sigma, "\n")
+      if(verbose){
+      cat("Node", i, "estimation complete:\n")
+      cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
+      cat("  Residual variance:", sigma, "\n")
+      }
+
+      if(verbose){cat("Saving results for node", i, "...\n")}
+
+      node_result <- list(
+        node_index = i,
+        Prec_reg_matrix_row = Prec_reg_matrix_row,
+        No_sim_Delta_hat_row = No_sim_Delta_hat_row,
+        sigma = sigma,
+        optimal_params = optimal_params,
+        computation_time = difftime(Sys.time(), time.start, units = "mins"),
+        # Save metadata for result collection
+        col_names = colnames(interM),
+        row_names = colnames(Z0),
+        groups = groups,
+        U_names = U_names,
+        scaling_params = scaling_params,
+        dummy_params = dummy_params
+      )
+
+      output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
+      save(node_result, file = output_file)
     }
-
-    #################################################
-    ## Save Results for Node i
-    #################################################
-
-    if(verbose){cat("Saving results for node", i, "...\n")}
-
-    node_result <- list(
-      node_index = i,
-      Prec_reg_matrix_row = Prec_reg_matrix_row,
-      No_sim_Delta_hat_row = No_sim_Delta_hat_row,
-      sigma = sigma,
-      optimal_params = optimal_params,
-      computation_time = difftime(Sys.time(), time.start, units = "mins"),
-      # Save metadata for result collection
-      col_names = colnames(interM),
-      row_names = colnames(Z0),
-      groups = groups,
-      U_names = U_names,
-      scaling_params = scaling_params,
-      dummy_params = dummy_params
-    )
-
-    output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
-    save(node_result, file = output_file)
   }
-
   #################################################
   ## Prepare Output for Node i
   #################################################
 
-  cat("Finalesults saved to:", output_file, "\n")
-  cat("Computation time for node", i, ":", Sys.time() - time.start, "\n")
+  cat("Final results saved to:", output_file, "\n")
+  cat("Computation time for node", i, ":", difftime(Sys.time(), time.start, units = "mins"), "\n")
   cat("=== Node", i, "Complete ===\n")
 }
 
