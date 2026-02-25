@@ -105,7 +105,7 @@ res_5 <- GGReg_cov_estimation_sequential(
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
-  output_path = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Example_data/n200_p10_q3_noisy_OR/rep1/results_sequential/",
+  output_path = "./results_tests/",
   name_output = "ggReg_result",
   symm_method ="OR",
   verbose = TRUE) 

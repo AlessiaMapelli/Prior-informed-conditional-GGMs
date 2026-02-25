@@ -986,6 +986,7 @@ GGReg_cov_single_node_processing <- function(
 
   if(is.null(covariates)){
     if (is.null(known_ppi)) {
+      if(verbose){cat("No covariates and no prior knowledge. Running standard Lasso regression...\n")}
       set.seed(2024)
       if (is.null(lambda_prec)) {
         mod <- cv.glmnet(x = as.matrix(Xmat), y = Y, alpha = 1, family = c("gaussian"))
@@ -994,6 +995,7 @@ GGReg_cov_single_node_processing <- function(
         mod <- cv.glmnet(x = as.matrix(Xmat), y = Y,lambda = lambda_seq, alpha = 1, family = c("gaussian"))
       }
     }else{
+      if(verbose){cat("No covariates. Running Lasso regression weighted with prior knowledge...\n")}
       w_sparsity <- rep(1, ncol(Xmat))
       temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
       w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
@@ -1022,10 +1024,10 @@ GGReg_cov_single_node_processing <- function(
     df_j <- sum(prec_reg_coeff != 0)
     sigma <- sum(res.model^2) / (n - df_j)
 
-    best_params <- list(best_lambda_prec = best_lambda_prec, bic_score = bic_score)
-
     # BIC = n * log(RSS/n) + log(n) * df
     bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
+
+    best_params <- list(best_lambda_prec = best_lambda_prec, asparse = 1, weight = 1, bic_score = bic_score)
 
     Prec_reg_matrix_row <- rep(0, ncol(interM))
     Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
@@ -1059,6 +1061,7 @@ GGReg_cov_single_node_processing <- function(
     save(node_result, file = output_file)
 
   }else{
+    if(verbose){cat("Running group spare Lasso regression with covariates...\n") }
     if (tune_hyperparams && !(length(asparse_grid) == 1 && length(weight_grid) == 1)) {
       if(verbose){
       cat("Starting hyperparameter tuning...\n")
@@ -1301,7 +1304,7 @@ collect_node_results <- function(
   Prec_reg_matrix <- matrix(0, p, n_cols)
   Sigma_hat <- rep(1, p)
   No_sim_Delta_hat <- matrix(0, p, n_cols)
-  optimal_params <- data.frame(node = 1:p, asparse = NA, weight = NA, bic_score = NA)
+  optimal_params <- data.frame(node = 1:p, best_lambda_prec=NA, asparse = NA, weight = NA, bic_score = NA)
   computational_time <- rep(0, p)
   scaling_params <- node_result$scaling_params
   dummy_params <- node_result$dummy_params
@@ -1316,8 +1319,8 @@ collect_node_results <- function(
         No_sim_Delta_hat[i, ] <- node_result$No_sim_Delta_hat_row
         
         if (!is.null(node_result$optimal_params)) {
-          optimal_params[i, c("asparse", "weight", "bic_score")] <- 
-            node_result$optimal_params[c("asparse", "weight", "bic_score")]
+          optimal_params[i, c("best_lambda_prec", "asparse", "weight", "bic_score")] <- 
+            node_result$optimal_params[c("best_lambda_prec","asparse", "weight", "bic_score")]
         }
 
         if (!is.null(node_result$computation_time)) {
