@@ -2,8 +2,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=your.email@email.org
 #SBATCH --job-name=job_name
-#SBATCH --output=logs_new/ggReg_node_%A_%a.out
-#SBATCH --error=logs_new/ggReg_node_%A_%a.err
+#SBATCH --output=logs/ggReg_node_%A_%a.out
+#SBATCH --error=logs/ggReg_node_%A_%a.err
 #SBATCH --time=10:00:00
 #SBATCH --mem=5GB
 #SBATCH --partition=cpuq

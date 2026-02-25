@@ -290,6 +290,26 @@ new_pers_networks
 compare_networks(new_pers_networks$Subject_1, new_pers_networks$Subject_2, method = "correlation")
 plot_network_difference(new_pers_networks$Subject_1, new_pers_networks$Subject_2)
 
+res_5 <- GGReg_cov_estimation_SLURM(
+  Z0,
+  known_ppi = known_ppi,
+  covariates = NULL,
+  scr = FALSE,
+  gamma = NULL,
+  lambda_prec = NULL,
+  lambda_prec_type = "min",
+  tune_hyperparams = FALSE,
+  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
+  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  random_hyper_search = FALSE,
+  p.rand.hyper = NULL,
+  K = 5,
+  output_path = "./results_tests/",
+  name_output = "ggReg_result",
+  symm_method ="OR",
+  verbose = TRUE) 
+plot_personalized_network(res_5$Dic_adj_matrics$Baseline)
+
 ########################################
 ## 1. Usage example
 ########################################
