@@ -2,3 +2,6 @@
 
 T2D_application/logs/
 T2D_application/results/
+T2D_application/Selection_data_id.txt
+T2D_application/Train_data_id.txt
+T2D_application/Test_data_id.txt
