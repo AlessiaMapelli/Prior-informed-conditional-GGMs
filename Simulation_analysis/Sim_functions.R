@@ -26,9 +26,9 @@ library(reshape2)
 generate_network_structure <- function(
   n_nodes, 
   method = "SF", # or "ER" 
-  n_edges = NULL, 
-  power = 2.5, 
-  edge_prob = NULL,
+  n_edges_sf = NULL, 
+  power_sf = 2.5, 
+  edge_prob_er = NULL,
   interval = c(0.35, 0.5), 
   sign_options = c(-1, 1)
   ) 
@@ -36,22 +36,22 @@ generate_network_structure <- function(
   
   # Generate base graph structure
   if (method == "SF") {
-    if (is.null(n_edges)) {
+    if (is.null(n_edges_sf)) {
       stop("n_edges must be specified for scale-free networks")
     }
     # Use preferential attachment (Barabási-Albert model)
-    g <- sample_pa(n = n_nodes, power = power, directed = FALSE)
+    g <- sample_pa(n = n_nodes, power = power_sf, directed = FALSE)
     # If we have too many edges, remove some randomly
     current_edges <- gsize(g)
-    if (current_edges > n_edges) {
-      edges_to_remove <- sample(E(g), current_edges - n_edges)
+    if (current_edges > n_edges_sf) {
+      edges_to_remove <- sample(E(g), current_edges - n_edges_sf)
       g <- delete_edges(g, edges_to_remove)
     }
   } else if (method == "ER") {
-    if (is.null(edge_prob)) {
+    if (is.null(edge_prob_er)) {
       stop("edge_prob must be specified for Erdős-Rényi networks")
     }
-    g <- erdos.renyi.game(n_nodes, p = edge_prob, type = "gnp", directed = FALSE)
+    g <- erdos.renyi.game(n_nodes, p = edge_prob_er, type = "gnp", directed = FALSE)
   }
   
   # Get adjacency matrix
@@ -577,7 +577,7 @@ generate_simulation_dataset <- function(
     }
   }
   
-  if(effective_mean){
+  if(covariate_config$effective_mean){
       # Generate mean effects for each covariate component
      mean_effects <- list()
   
@@ -610,9 +610,9 @@ generate_simulation_dataset <- function(
   precision_matrices[["Prot"]] <- generate_network_structure(
     n_nodes = n_nodes,
     method = network_config$population_method,
-    n_edges = network_config$population_edges,
-    power = network_config$population_power,
-    edge_prob = network_config$population_prob,
+    n_edges_sf = network_config$population_n_edges_sf,
+    power_sf = network_config$population_power_sf,
+    edge_prob_er = network_config$population_edge_prob_er,
     interval = network_config$coefficient_range,
     sign_options = network_config$sign_options
   )
@@ -645,9 +645,9 @@ generate_simulation_dataset <- function(
     precision_matrices[[cov_name]] <- generate_network_structure(
       n_nodes = n_nodes,
       method = network_config$covariate_method,
-      n_edges = network_config$covariate_edges,
-      power = network_config$power,
-      edge_prob = network_config$covariate_prob,  # Sparser covariate effects
+      n_edges_sf =  network_config$covariate_n_edges_sf,
+      power_sf = network_config$covariate_power_sf,
+      edge_prob_er = network_config$covariate_edge_prob_er,  # Sparser covariate effects
       interval = reduced_range,
       sign_options = network_config$sign_options
     )
@@ -743,9 +743,9 @@ simulate_subject_data_robust <- function(
   covariate_values) 
 {
   
-  p <- length(mean_effects[[1]])  # Number of variables
-  q <- length(mean_effects) - 1   # Number of covariates (excluding intercept)
-  
+  p <- ncol(precision_matrices[[1]])  # Number of variables
+  q <- ncol(covariate_values)   # Number of covariates
+
   # Initialize storage
   simulated_data <- matrix(0, n_samples, p)
   individual_precision_matrices <- array(0, dim = c(p, p, n_samples))
@@ -946,8 +946,16 @@ run_single_simulation <- function(
   
   # Set up configurations
   network_config <- NETWORK_CONFIG
-  network_config$population_edges <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
-                                              network_config$population_density)
+  if(is.null(network_config$population_n_edges_sf)){
+    if(is.null(network_config$population_density_sf)){network_config$population_density_sf=1}
+      network_config$population_n_edges_sf <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
+                                              network_config$population_density_sf)
+  }
+  if(is.null(network_config$covariate_n_edges_sf)){
+    if(is.null(network_config$covariate_density_sf)){network_config$covariate_density_sf=1}
+      network_config$covariate_n_edges_sf <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
+                                                  network_config$covariate_density_sf)
+  }
   
   covariate_config <- base_covariate_config(config$n_covariates)
   
@@ -1001,7 +1009,7 @@ run_single_simulation <- function(
     random_hyper_search = method_params$random_hyper_search,
     p.rand.hyper = method_params$p.rand.hyper,
     K = method_params$K,
-    use_slurm = FALSE,
+    use_slurm = method_params$use_slurm,
     slurm_script_path = method_params$slurm_script_path,
     output_path = output_path,
     name_output = name_output,
@@ -1825,29 +1833,36 @@ generate_input_datasets_simulation <- function(
       
         
       network_config <- NETWORK_CONFIG
-      network_config$population_edges <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
-                                                     network_config$population_density)
-          
+      if(is.null(network_config$population_n_edges_sf)){
+        if(is.null(network_config$population_density_sf)){network_config$population_density_sf=1}
+          network_config$population_n_edges_sf <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
+                                                  network_config$population_density_sf)
+      }
+      if(is.null(network_config$covariate_n_edges_sf)){
+        if(is.null(network_config$covariate_density_sf)){network_config$covariate_density_sf=1}
+          network_config$covariate_n_edges_sf <- round(config$n_nodes * (config$n_nodes - 1) / 2 * 
+                                                      network_config$covariate_density_sf)
+      }
+      
       covariate_config <- base_covariate_config(config$n_covariates)
-          
+      
       prior_config <- list(
         type = config$prior_type,
         noise_params = PRIOR_NOISE_PARAMS
       )
-          
+      
       method_params <- get_method_params(config$prior_type)
-          
+      
       # Generate simulation dataset
       sim_dataset <- generate_simulation_dataset(
-            n_samples = config$n_samples,
-            n_nodes = config$n_nodes,
-            covariate_config = covariate_config,
-            network_config = network_config,
-            prior_config = prior_config,
-            seed = seed,
-            output_path = ggReg_output_path_rep,
-            name_output = ggReg_output_name
-            
+        n_samples = config$n_samples,
+        n_nodes = config$n_nodes,
+        covariate_config = covariate_config,
+        network_config = network_config,
+        prior_config = prior_config,
+        seed = seed,
+        output_path = output_path,
+        name_output = name_output
       )
       rep_id=rep
       save(sim_dataset, config, rep_id, file=paste0(ggReg_output_path_rep, "sim_dataset_full.RData"))

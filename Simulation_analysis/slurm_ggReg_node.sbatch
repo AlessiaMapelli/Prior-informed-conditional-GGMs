@@ -4,8 +4,8 @@
 #SBATCH --job-name=job_name
 #SBATCH --output=logs/ggReg_node_%A_%a.out
 #SBATCH --error=logs/ggReg_node_%A_%a.err
-#SBATCH --time=01:00:00
-#SBATCH --mem=2GB
+#SBATCH --time=00:05:00
+#SBATCH --mem=500MB
 #SBATCH --partition=cpuq
 
 # SLURM array script for GGReg node-wise estimation

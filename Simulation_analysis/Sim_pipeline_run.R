@@ -14,10 +14,10 @@ source("/group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-info
 
 # Define simulation grid
 SIMULATION_GRID <- expand.grid(
-  n_samples = c(1000, 5000, 10000),
+  n_samples = c(500, 1000),
   n_nodes = c(50, 100),
   prior_type = c("perfect", "noisy", "none"),
-  n_covariates = c(1, 3, 5),  # 1=binary only, 3=2 continuous + 1 binary, 5=3 continuous (1 no effect) + 2 binary(1 no effect)
+  n_covariates = c(1, 3),  # 1=binary only, 3=2 continuous + 1 binary, 5=3 continuous (1 no effect) + 2 binary(1 no effect)
   symm_method = c("OR"), 
   stringsAsFactors = FALSE
 )
@@ -29,15 +29,16 @@ N_REPLICATIONS <- 10
 # Fixed network parameters (following the paper)
 NETWORK_CONFIG <- list(
   population_method = "SF",        # Scale-free for population network
-  population_power = 2.5,          # Power law exponent
-  population_edges = NULL,         # Will be computed based on density
-  population_density = 1,        # Target edge density for population network
-  population_prob = NULL,
+  population_power_sf = 2.5,          # Power law exponent
+  population_n_edges_sf = NULL,         # Will be computed based on density
+  population_density_sf = 1,        # Target edge density for population network
+  population_edge_prob_er = NULL,
   
   covariate_method = "ER",         # Erdős-Rényi for covariate effects
-  covariate_prob = 0.01,           # Edge probability for covariate networks
-  covariate_edges = NULL,
-  covariate_power = NULL,
+  covariate_power_sf = NULL,
+  covariate_n_edges_sf = NULL,
+  covariate_density_sf = NULL,
+  covariate_edge_prob_er= 0.1,           # Edge probability for covariate networks
   
   
   coefficient_range = c(0.35, 0.5), # Magnitude range for coefficients
@@ -71,8 +72,8 @@ get_method_params <- function(prior_type) {
     asparse_grid = c(0.5, 0.75, 0.9, 0.99),
     screening_procedure=FALSE,
     random_hyper_search = TRUE,
-    p.rand.hyper = 0.75,
-    K = 3,
+    p.rand.hyper = 0.5,
+    K = 5,
     verbose = TRUE
   )
   
@@ -100,17 +101,31 @@ TEST_SIMULATION_GRID <- expand.grid(
 #################################################
 ## SIMULATION EXECUTION FUNCTIONS
 #################################################
-simulation_output_folder = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Simulation_results/full_OR_lamd_min/v2"
+simulation_output_folder = "Simulation_results"
 dir.create(simulation_output_folder)
 write.csv(SIMULATION_GRID, file=paste0(simulation_output_folder, "/input_computation_file.csv"))
 simulation_output_file   = "simulation_results.RData"
 
 #################################################
-## SEQUENTIAL EXECUTION FOR TESTING - RUN THIS FIRST TO TEST THE PIPELINE
+## SEQUENTIAL EXECUTION - Test simulation
 #################################################
 
-all_results <- run_complete_simulation(SIMULATION_GRID = TEST_SIMULATION_GRID,
-                                    N_REPLICATIONS = 1,
+simulation_output_folder = "Simulation_results/test"
+dir.create(simulation_output_folder)
+write.csv(SIMULATION_GRID[16,], file=paste0(simulation_output_folder, "/input_computation_file.csv"))
+simulation_output_file   = "simulation_results_test.RData"
+source("Sim_functions.R")
+all_results <- run_complete_simulation(SIMULATION_GRID = SIMULATION_GRID[16,],
+                                       N_REPLICATIONS = 1,
+                                       output_folder= simulation_output_folder,
+                                       output_file = simulation_output_file)
+
+#################################################
+## SEQUENTIAL EXECUTION - FULL SIMULATION PIPELINE
+#################################################
+
+all_results <- run_complete_simulation(SIMULATION_GRID = SIMULATION_GRID,
+                                    N_REPLICATIONS = N_REPLICATIONS,
                                     output_folder= simulation_output_folder,
                                     output_file = simulation_output_file)
 
