@@ -210,10 +210,9 @@ simulate_subject_data <- function(
   covariate_values
   )
 {
-  
-  p <- length(mean_effects[[1]])  # Number of variables
-  q <- length(mean_effects) - 1   # Number of covariates (excluding intercept)
-  
+  p <- ncol(precision_matrices[[1]])  # Number of variables
+  q <- ncol(covariate_values)   # Number of covariates
+
   # Initialize storage
   simulated_data <- matrix(0, n_samples, p)
   individual_precision_matrices <- array(0, dim = c(p, p, n_samples))
@@ -1631,7 +1630,10 @@ generate_analysis_plots <- function(
 #' Generate summary tables
 #' @param processed_data Processed simulation results
 #' @return List of summary tables
-generate_summary_tables <- function(processed_data) {
+generate_summary_tables <- function(
+  processed_data
+  )
+{
   
   tables <- list()
   
@@ -1861,8 +1863,8 @@ generate_input_datasets_simulation <- function(
         network_config = network_config,
         prior_config = prior_config,
         seed = seed,
-        output_path = output_path,
-        name_output = name_output
+        output_path = ggReg_output_path_rep,
+        name_output = ggReg_output_name
       )
       rep_id=rep
       save(sim_dataset, config, rep_id, file=paste0(ggReg_output_path_rep, "sim_dataset_full.RData"))
@@ -1900,8 +1902,8 @@ generate_input_datasets_simulation <- function(
       K = method_params$K
       use_slurm = FALSE
       slurm_script_path = method_params$slurm_script_path
-      output_path = output_path
-      name_output = name_output
+      output_path = ggReg_output_path_rep
+      name_output = ggReg_output_name
       symm_method =config$symm_method
       verbose = method_params$verbose
 

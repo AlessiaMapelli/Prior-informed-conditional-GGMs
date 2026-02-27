@@ -38,7 +38,7 @@ NETWORK_CONFIG <- list(
   covariate_power_sf = NULL,
   covariate_n_edges_sf = NULL,
   covariate_density_sf = NULL,
-  covariate_edge_prob_er= 0.1,           # Edge probability for covariate networks
+  covariate_edge_prob_er= 0.05,           # Edge probability for covariate networks
   
   
   coefficient_range = c(0.35, 0.5), # Magnitude range for coefficients
@@ -65,7 +65,7 @@ PRIOR_NOISE_PARAMS <- list(
 
 get_method_params <- function(prior_type) {
   base_params <- list(
-    use_slurm = TRUE,
+    use_slurm = FALSE,
     slurm_script_path = "./slurm_ggReg_node.sbatch",
     lambda_prec_type = "min",
     tune_hyperparams = TRUE,
@@ -99,14 +99,6 @@ TEST_SIMULATION_GRID <- expand.grid(
 
 
 #################################################
-## SIMULATION EXECUTION FUNCTIONS
-#################################################
-simulation_output_folder = "Simulation_results"
-dir.create(simulation_output_folder)
-write.csv(SIMULATION_GRID, file=paste0(simulation_output_folder, "/input_computation_file.csv"))
-simulation_output_file   = "simulation_results.RData"
-
-#################################################
 ## SEQUENTIAL EXECUTION - Test simulation
 #################################################
 
@@ -114,11 +106,19 @@ simulation_output_folder = "Simulation_results/test"
 dir.create(simulation_output_folder)
 write.csv(SIMULATION_GRID[16,], file=paste0(simulation_output_folder, "/input_computation_file.csv"))
 simulation_output_file   = "simulation_results_test.RData"
-source("Sim_functions.R")
 all_results <- run_complete_simulation(SIMULATION_GRID = SIMULATION_GRID[16,],
                                        N_REPLICATIONS = 1,
                                        output_folder= simulation_output_folder,
                                        output_file = simulation_output_file)
+
+#################################################
+## SIMULATION EXECUTION FUNCTIONS
+#################################################
+simulation_output_folder = "Simulation_results"
+dir.create(simulation_output_folder)
+write.csv(SIMULATION_GRID, file=paste0(simulation_output_folder, "/input_computation_file.csv"))
+simulation_output_file   = "simulation_results.RData"
+
 
 #################################################
 ## SEQUENTIAL EXECUTION - FULL SIMULATION PIPELINE
