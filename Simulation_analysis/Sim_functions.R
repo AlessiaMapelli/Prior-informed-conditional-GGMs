@@ -1914,15 +1914,15 @@ generate_input_datasets_simulation <- function(
           lambda_mean = lambda_mean,
           lambda_mean_type = lambda_mean_type,
           verbose = verbose)
-        Z <- res_mean_reg$z
+        Z0 <- res_mean_reg$z
       }else {
-         Z <- x
+         Z0 <- x
       }
-      n <- nrow(Z)
-      p <- ncol(Z)
+      n <- nrow(Z0)
+      p <- ncol(Z0)
 
       input_data_path <- paste0(ggReg_output_path_rep, "input_data_nodes.rda")
-      save(Z, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+      save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
           tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
           file = input_data_path)
 
@@ -1955,7 +1955,20 @@ collect_and_evaluate_resuts <- function(
   symm_method = "OR"
   )
 {
-  ggReg_results <- collect_node_results(p, output_path, name_output, symm_method)
+  ggReg_results_unstructired <- collect_node_results(p, output_path, name_output, symm_method)
+
+  results <- list(
+    Cov_effect = NULL,
+    Dic_adj_matrics = ggReg_results_unstructired$Dic_adj_matrics)
+  
+  additional_info <- list(
+    Dic_Delta_hat = ggReg_results_unstructired$Dic_Delta_hat,
+    computational_time_per_node = ggReg_results_unstructired$computational_time_per_node,
+    scaling_params = ggReg_results_unstructired$scaling_params,
+    dummy_params = ggReg_results_unstructired$dummy_params
+  )
+  ggReg_results = list(results = results, additional_info = additional_info)
+
   
   list_estimated_prec <- ggReg_results$additional_info$Dic_Delta_hat
   estimation_matrix_names <- names(list_estimated_prec)
@@ -1980,6 +1993,8 @@ collect_and_evaluate_resuts <- function(
       labs(title = "Estimated adjacency Matrix", x = "", y = "")
     ggsave(plot, filename=paste(output_path, "Estimated_matrix_",name_output ,"_", name_cov, ".png", sep=""), width=8, height=8, dpi=300)
   }
+
+  load(paste0(output_path, "sim_dataset_full.RData"))
 
 
   # Evaluate results

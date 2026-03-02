@@ -151,6 +151,7 @@ input_computation <- generate_input_datasets_simulation(
 #################################################
 ## PARALLEL EXECUTION - EVALUATION OF THE OUTCOME
 #################################################
+#input_computation <- read.csv("Simulation_results/input_computation_file.csv") 
 all_results <- list()
 for(i in 1:nrow(input_computation)){
   input_computation_row <- input_computation[i,]
@@ -159,7 +160,7 @@ for(i in 1:nrow(input_computation)){
                                         name_output =input_computation_row$name_output,
                                         symm_method = "OR")
   config <- result$config
-  rep_id <- result
+  rep_id <- result$rep_id
   result_id <- sprintf("n%d_p%d_q%d_%s_%s_rep%d", 
                        config$n_samples, config$n_nodes, config$n_covariates,
                        config$prior_type, config$symm_method, rep_id)
@@ -170,7 +171,7 @@ for(i in 1:nrow(input_computation)){
                                       name_output =input_computation_row$name_output,
                                       symm_method = "AND")
   config <- result$config
-  rep_id <- result
+  rep_id <- result$rep_id
   result_id <- sprintf("n%d_p%d_q%d_%s_%s_rep%d", 
                        config$n_samples, config$n_nodes, config$n_covariates,
                        config$prior_type, config$symm_method, rep_id)

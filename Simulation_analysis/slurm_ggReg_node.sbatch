@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --mail-type=FAIL
-#SBATCH --mail-user=aalessia.mapelli@fht.org
+#SBATCH --mail-user=alessia.mapelli@fht.org
 #SBATCH --job-name=job_name
 #SBATCH --output=logs/ggReg_node_%A_%a.out
 #SBATCH --error=logs/ggReg_node_%A_%a.err

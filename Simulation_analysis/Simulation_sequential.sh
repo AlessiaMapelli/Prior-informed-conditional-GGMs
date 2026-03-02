@@ -16,23 +16,24 @@ if [[ ! -f "$csv_file_conf" ]]; then
     exit 1
 fi
 
-#Option 1: Process the entire CSV file (excluding header)
+# Option 1: Process the entire CSV file (excluding header)
 total_lines=$(tail -n +2 "$csv_file_conf" | wc -l)
 echo "Processing all CSV data rows (total: $total_lines)"
-line_num=1
+line_num=72
 
 # Option 2: Define the line range to process (data lines, not including header)
-# start_line=257
-# end_line=260
+# start_line=1
+# end_line=2
 # echo "Processing lines $start_line to $end_line from CSV file (total data rows: $total_lines)"
 # line_num=$start_line
 
-tail -n +2 "$csv_file_conf" | while IFS=',' read -r p slurm_script_path input_data_path output_path name_output; do
+tail -n +72 "$csv_file_conf" | while IFS=',' read -r p slurm_script_path input_data_path output_path name_output; do
+#tail -n +2 "$csv_file_conf" | while IFS=',' read -r p slurm_script_path input_data_path output_path name_output; do
 #sed -n "$((start_line+1)),$((end_line+1))p" "$csv_file_conf" | while IFS=',' read -r p slurm_script_path input_data_path output_path name_output; do
     # Wait if job limit is reached
     while [ "$(squeue -u $USER | wc -l)" -ge "${JOBS_LIMIT}" ]; do
-        echo "Jobs limit reached, sleeping for 4 minutes..."
-        sleep 240
+        echo "Jobs limit reached, sleeping for 2 minutes..."
+        sleep 120
     done
     
     echo "Processing: Line ${line_num} of ${total_lines}"
