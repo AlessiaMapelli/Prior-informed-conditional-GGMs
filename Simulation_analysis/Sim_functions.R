@@ -1183,7 +1183,7 @@ process_simulation_results <- function(
           n_nodes = config$n_nodes,
           n_covariates = config$n_covariates,
           prior_type = config$prior_type,
-          symm_method = config$symm_method,
+          symm_method = sapply(strsplit(result_id, "_"), `[`, 5),
           rep_id = result$rep_id,
           component = comp_name,
           component_type = "delta_individual",
