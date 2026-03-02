@@ -149,9 +149,23 @@ input_computation <- generate_input_datasets_simulation(
 # Simulation_sequential.sh path_to_input_datasets
 
 #################################################
+## PARALLEL EXECUTION - CHECK RESULTS PRESENCE
+#################################################
+#input_computation <- read.csv("Simulation_results/input_computation_file.csv")
+for(i in 1:nrow(input_computation)){
+  input_computation_row <- input_computation[i,]
+  output_path =input_computation_row$output_path
+  name_output =input_computation_row$name_output
+  first_result_file <- paste0(output_path, name_output, "_node_1.rda")
+  if (!file.exists(first_result_file)) {
+    cat("Result file for node 1 not found for row ", i, " \n")
+  }
+}
+
+#################################################
 ## PARALLEL EXECUTION - EVALUATION OF THE OUTCOME
 #################################################
-#input_computation <- read.csv("Simulation_results/input_computation_file.csv") 
+
 all_results <- list()
 for(i in 1:nrow(input_computation)){
   input_computation_row <- input_computation[i,]
@@ -179,12 +193,13 @@ for(i in 1:nrow(input_computation)){
 
   if (i %% N_REPLICATIONS == 0) {
     cat(paste0("Processing line ", i , " out of ", nrow(input_computation), "\n"))
-    cat("Saving intermediate results...\n")
-    save(all_results, SIMULATION_GRID, file = paste0(simulation_output_folder,"/", "temp_untill_row", i, "_", simulation_output_file))
+    # cat("Saving intermediate results...\n")
+    # save(all_results, SIMULATION_GRID, file = paste0(simulation_output_folder,"/", "temp_", simulation_output_file))
   }
   }
 cat("Saving final results...\n")
 save(all_results, SIMULATION_GRID, file = paste(simulation_output_folder,simulation_output_file, sep="/"))
+
 
 
 #################################################
@@ -194,7 +209,7 @@ save(all_results, SIMULATION_GRID, file = paste(simulation_output_folder,simulat
 cat("\nProcessing and analyzing results...\n")
 
 processed_data <- process_simulation_results(all_results)
-#save(processed_data, file = paste(simulation_output_folder,simulation_output_file, sep="/"))
+save(processed_data, file = paste0(simulation_output_folder, "/", "simulation_results_processed.RData"))
 
 # Generate analysis
 cat("Generating plots...\n")
@@ -202,7 +217,8 @@ plots <- generate_analysis_plots(processed_data)
 
 library(forcats)
 # 1. Prot performance by prior type
-Prot_delta_data <- processed_data[processed_data$component == "Prot", ]
+str(processed_data)
+Prot_delta_data <- processed_data[processed_data$component == "Baseline", ]
 Prot_delta_data <- Prot_delta_data %>%
   mutate(prior_type = fct_relevel(prior_type, "none", "noisy", "perfect"))
 

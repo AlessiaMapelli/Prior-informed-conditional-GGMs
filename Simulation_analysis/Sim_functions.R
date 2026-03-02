@@ -486,9 +486,12 @@ evaluate_estimation <- function(
   delta_names <- names(true_Delta_list)
   
   for (name in delta_names) {
-    if (name %in% names(estimated_Delta_list)) {
+    if(name == "Prot"){
+      est_name <- "Baseline"
+    }else{est_name <- name}
+    if (est_name %in% names(estimated_Delta_list)) {
       true_mat <- true_Delta_list[[name]]
-      est_mat <- estimated_Delta_list[[name]]
+      est_mat <- estimated_Delta_list[[est_name]]
       
       # Binary metrics
       binary_metrics <- calculate_binary_metrics(true_mat, est_mat)
@@ -497,7 +500,7 @@ evaluate_estimation <- function(
       frobenius_error <- calculate_frobenius_error(true_mat, est_mat)
       magnitude_preserved <- calculate_magnitude_preserved(true_mat, est_mat)
       
-      results[[paste0("Delta_", name)]] <- c(binary_metrics, 
+      results[[paste0("Delta_", est_name)]] <- c(binary_metrics, 
                                            list(Frobenius_Error = frobenius_error, magnitude_preserved= magnitude_preserved ))
     }
   }
