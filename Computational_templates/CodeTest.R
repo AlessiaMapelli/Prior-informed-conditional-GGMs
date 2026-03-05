@@ -270,7 +270,7 @@ res <- GGReg_full_estimation(
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
-  use_slurm = FALSE,
+  use_slurm = TRUE,
   output_path = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Example_data/n200_p10_q3_noisy_OR/rep1/results_sequential/",
   name_output = "ggReg_result",
   symm_method ="OR",

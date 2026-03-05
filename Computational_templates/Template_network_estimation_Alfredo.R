@@ -32,12 +32,12 @@ results <- GGReg_full_estimation(
   random_hyper_search = TRUE,
   p.rand.hyper = 0.5,
   K = 5,
-  use_slurm = FALSE,
+  use_slurm = TRUE,
   slurm_script_path = "./slurm_ggReg_node.sbatch",
   output_path = "./results/",
   name_output = "ggReg_result",
   symm_method ="AND",
-  verbose = FALSE)
-weighted_adj_matrix <- esults$results$Dic_adj_matrics$Baseline
+  verbose = TRUE)
+weighted_adj_matrix <- results$results$Dic_adj_matrics$Baseline
 plot_personalized_network(weighted_adj_matrix)
 save(weighted_adj_matrix, file = "adj_matrix_example.RData")

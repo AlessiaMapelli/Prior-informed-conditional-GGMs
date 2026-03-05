@@ -9,6 +9,7 @@ library(stabs)
 library(matrixcalc)
 library(fake)
 library(reshape2)
+library(tidyr)
 
 #################################################
 ## NETWORK STRUCTURE GENERATION
@@ -1652,6 +1653,8 @@ generate_summary_tables <- function(
         Mean_F1 = sprintf("%.3f (%.3f)", mean(F1, na.rm = TRUE), sd(F1, na.rm = TRUE)),
         Mean_Error = sprintf("%.3f (%.3f)", mean(Frobenius_Error, na.rm = TRUE), 
                             sd(Frobenius_Error, na.rm = TRUE)),
+        Mean_Mag = sprintf("%.3f (%.3f)", mean(Magnitude_preserved, na.rm = TRUE), 
+                           sd(Magnitude_preserved, na.rm = TRUE)),
         Mean_Time = sprintf("%.1f", mean(computation_time, na.rm = TRUE)),
         .groups = 'drop'
       ) %>%
@@ -1688,6 +1691,8 @@ generate_summary_tables <- function(
         Overall_F1 = sprintf("%.3f ± %.3f", mean(F1, na.rm = TRUE), sd(F1, na.rm = TRUE)),
         Overall_Error = sprintf("%.3f ± %.3f", mean(Frobenius_Error, na.rm = TRUE), 
                                sd(Frobenius_Error, na.rm = TRUE)),
+        Overall_Magn_Pres = sprintf("%.3f ± %.3f", mean(Magnitude_preserved, na.rm = TRUE), 
+                                sd(Magnitude_preserved, na.rm = TRUE)),
         Avg_Time = sprintf("%.1f s", mean(computation_time, na.rm = TRUE)),
         .groups = 'drop'
       )
@@ -1723,6 +1728,9 @@ generate_summary_tables <- function(
         Accuracy = sprintf("%.3f ± %.3f", mean(Accuracy, na.rm = TRUE), sd(Accuracy, na.rm = TRUE)),
         Error = sprintf("%.3f ± %.3f", mean(Frobenius_Error, na.rm = TRUE), 
                        sd(Frobenius_Error, na.rm = TRUE)),
+        Mean_Mag = sprintf("%.3f (%.3f)", mean(Magnitude_preserved, na.rm = TRUE), 
+                           sd(Magnitude_preserved, na.rm = TRUE)),
+        Mean_Time = sprintf("%.1f", mean(computation_time, na.rm = TRUE)),
         .groups = 'drop'
       ) %>%
       pivot_wider(names_from = prior_type, values_from = c(TPR, F1, Error),
@@ -1736,7 +1744,10 @@ generate_summary_tables <- function(
         F1 = sprintf("%.3f ± %.3f", mean(F1, na.rm = TRUE), sd(F1, na.rm = TRUE)),
         Accuracy = sprintf("%.3f ± %.3f", mean(Accuracy, na.rm = TRUE), sd(Accuracy, na.rm = TRUE)),
         Error = sprintf("%.3f ± %.3f", mean(Frobenius_Error, na.rm = TRUE), 
-                        sd(Frobenius_Error, na.rm = TRUE)),
+                        sd(Frobenius_Error, na.rm = TRUE)),        
+        Mean_Mag = sprintf("%.3f (%.3f)", mean(Magnitude_preserved, na.rm = TRUE),
+                           sd(Magnitude_preserved, na.rm = TRUE)),
+        Mean_Time = sprintf("%.1f", mean(computation_time, na.rm = TRUE)),
         .groups = 'drop'
       )
   }
