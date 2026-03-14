@@ -94,16 +94,16 @@ GGReg_full_estimation <- function(
   x,
   known_ppi = NULL,
   covariates = NULL,
-  scr = TRUE,
+  scr = FALSE,
   gamma = NULL,
   mean_estimation = TRUE,
   lambda_mean = NULL,
-  lambda_mean_type = "1se",
+  lambda_mean_type = "min",
   lambda_prec = NULL,
-  lambda_prec_type = "1se",
+  lambda_prec_type = "min",
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
-  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -254,7 +254,7 @@ GGReg_full_estimation <- function(
 #' # Single subject prediction
 #' new_subject <- data.frame(age = 45, sex = as.factor("Female"))
 #' pred_net <- predict_personalized_network(
-#'  Dic_Delta_hat = results$results$Dic_adj_matrics,
+#'  Dic_adj_matrics = results$results$Dic_adj_matrics,
 #'  new_subject_covariates = new_subject,
 #'  scaling_params = results$additional_info$scaling_params,
 #'  dummy_params = results$additional_info$dummy_params
@@ -266,34 +266,34 @@ GGReg_full_estimation <- function(
 #'   sex = as.factor(c("Female", "Male", "Female"))
 #' )
 #' pred_nets <- predict_personalized_network(
-#'   Dic_Delta_hat = results$results$Dic_adj_matrics,
+#'   Dic_adj_matrics = results$results$Dic_adj_matrics,
 #'   new_subject_covariates = new_subjects,
 #'   scaling_params = results$additional_info$scaling_params,
 #'   dummy_params = results$additional_info$dummy_params
 #' )
 #' 
 predict_personalized_network <- function(
-  Dic_Delta_hat, 
+  Dic_adj_matrics, 
   new_subject_covariates = NULL,
   scaling_params = NULL,
   dummy_params = NULL,
   verbose = FALSE) 
 { 
-  if (!is.list(Dic_Delta_hat)) {
-    stop("Dic_Delta_hat must be a list containing adjacency matrices")
+  if (!is.list(Dic_adj_matrics)) {
+    stop("Dic_adj_matrics must be a list containing adjacency matrices")
   }
 
   baseline_key <- "Baseline"
-  if (!(baseline_key %in% names(Dic_Delta_hat))) {
-    stop("Dic_Delta_hat must contain the 'Baseline' network")
+  if (!(baseline_key %in% names(Dic_adj_matrics))) {
+    stop("Dic_adj_matrics must contain the 'Baseline' network")
   }
   
-  baseline_network <- Dic_Delta_hat[[baseline_key]]
+  baseline_network <- Dic_adj_matrics[[baseline_key]]
   
   if (verbose) {
     cat("=== Predicting Personalized Network ===\n")
     cat("Baseline network:", baseline_key, "\n")
-    cat("Available covariate effects:", setdiff(names(Dic_Delta_hat), baseline_key), "\n")
+    cat("Available covariate effects:", setdiff(names(Dic_adj_matrics), baseline_key), "\n")
   }
   
   ## Case 1: No covariates - return baseline network
@@ -337,7 +337,7 @@ predict_personalized_network <- function(
       if (col %in% colnames(new_subject_covariates)) {
           dummies <- dummy_params$dummy_colnames[grepl(paste0("^", col), dummy_params$dummy_colnames)]
           for (dummy_col in dummies) {
-            C_new[[dummy_col]] <- ifelse(new_subject_covariates[[col]] == sub(paste0("^", col),"",dummy_col), 1, 0)
+            C_new[[dummy_col]] <- ifelse(new_subject_covariates[[col]] == sub(paste0("^", col,"_"),"",dummy_col), 1, 0)
             is_numeric[dummy_col] <- FALSE
           }
       }
@@ -358,21 +358,21 @@ predict_personalized_network <- function(
       for (i in 1:length(covariate_row)) {
         covariate_name <- colnames(C_new)[i]
         covariate_value <- as.numeric(covariate_row[i])
-        if (covariate_name %in% names(Dic_Delta_hat)) {
+        if (covariate_name %in% names(Dic_adj_matrics)) {
           if(is_numeric[covariate_name]){
             if (verbose) {
               cat("  Adding effect of numeric covariate", covariate_name, "with value", covariate_value, "\n")
             }
-            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_Delta_hat[[covariate_name]]
+            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_adj_matrics[[covariate_name]]
           } else {
             if (verbose && covariate_value == 1) {
               cat("  Adding effect of categorical covariate", covariate_name, "\n")
             }
-            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_Delta_hat[[covariate_name]]
+            signle_personalized_net <- signle_personalized_net + covariate_value * Dic_adj_matrics[[covariate_name]]
           }
         } else {
           if (verbose) {
-            warning("Covariate '", covariate_name, "' not found in Dic_Delta_hat. Skipping.")
+            warning("Covariate '", covariate_name, "' not found in Dic_adj_matrics. Skipping.")
           }
         }
         personalized_net[[j]] <- signle_personalized_net
@@ -437,6 +437,21 @@ GGReg_mean_estimation <- function(
     numeric_columns <- sapply(covariates, is.numeric)
     covariates[, numeric_columns] <- scale(covariates[, numeric_columns])
     C <- model.matrix( ~ ., covariates)
+    cn <- colnames(C)
+  
+    for (v in names(covariates)) {
+      if (is.factor(covariates[[v]]) || is.character(covariates[[v]])) {
+        
+        levs <- unique(as.character(covariates[[v]]))        
+        for (l in levs) {
+          pattern <- paste0("^", v, l, "$")
+          replacement <- paste0(v, "_", l)
+          cn <- sub(pattern, replacement, cn)
+        }
+      }
+    }
+    colnames(C) <- cn
+    
     X=x
     k <- ncol(C)
     Cov_effect = matrix(0, p, k)
@@ -525,8 +540,8 @@ GGReg_cov_estimation_SLURM <- function(
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
-  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -562,7 +577,7 @@ GGReg_cov_estimation_SLURM <- function(
   cat("\n", rep("=", 60), "\n", sep = "")
   cat("PAUSED FOR MANUAL SUBMISSION\n")
   cat(rep("=", 60), "\n")
-  cat("Set the right directory where your functions are stored: cd /your_folder/ \n")
+  cat("Set the right directory where your functions are stored: cd ./Computational_templates/ \n")
   cat("Please run the following command manually:\n\n")
   cat("  ", job_cmd, "\n\n")
   cat("After running the command, you will get output like:\n")
@@ -633,8 +648,8 @@ GGReg_cov_estimation_sequential <- function(
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
-  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -735,8 +750,8 @@ GGReg_cov_estimation_parallel <- function(
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.5, 0.75, 0.9, 0.95),
-  weight_grid = c(0.8, 1.0, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -883,6 +898,20 @@ GGReg_cov_single_node_processing <- function(
         )
     }
     C <- model.matrix(~ ., covariates)
+    cn <- colnames(C)
+  
+    for (v in names(covariates)) {
+      if (is.factor(covariates[[v]]) || is.character(covariates[[v]])) {
+        
+        levs <- unique(as.character(covariates[[v]]))        
+        for (l in levs) {
+          pattern <- paste0("^", v, l, "$")
+          replacement <- paste0(v, "_", l)
+          cn <- sub(pattern, replacement, cn)
+        }
+      }
+    }
+    colnames(C) <- cn
     dummy_params <- list(
       original_colnames = colnames(covariates),
       dummy_colnames = colnames(C)[-1]  # Exclude intercept
@@ -1163,7 +1192,8 @@ GGReg_cov_single_node_processing <- function(
             dummy_params = dummy_params
           )
 
-          cat("Saving best results so far for node", i, "...\n")
+          if(verbose){
+          cat("Saving best results so far for node", i, "...\n")}
 
           output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
           save(node_result, file = output_file)

@@ -1,12 +1,12 @@
 # Simulation Pipeline for Covariate-Dependent Gaussian Graphical Models
 # This script implements a comprehensive simulation study following the methodology
 # described in the referenced paper
-setwd("/group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-informed-conditional-GGMs/Simulation_analysis")
+setwd("./Simulation_analysis")
 rm(list = ls(all = TRUE))
 
 # Source required functions
 source("Sim_functions.R")
-source("/group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-informed-conditional-GGMs/Computational_templates/ggReg_main_functions.R")
+source("ggReg_main_functions.R")
 
 #################################################
 ## SIMULATION CONFIGURATION
@@ -92,7 +92,7 @@ TEST_SIMULATION_GRID <- expand.grid(
   n_samples = c(500),
   n_nodes = c(50),
   n_covariates = c(1),
-  prior_type = c("perfect", "noisy", "none"),
+  prior_type = c("perfect"),
   symm_method = c("OR"),
   stringsAsFactors = FALSE
 )
@@ -103,11 +103,11 @@ TEST_SIMULATION_GRID <- expand.grid(
 #################################################
 
 simulation_output_folder = "Simulation_results/test"
-dir.create(simulation_output_folder)
-write.csv(TEST_SIMULATION_GRID, file=paste0(simulation_output_folder, "/input_computation_file.csv"))
+dir.create(simulation_output_folder, recursive = TRUE)
+write.csv(TEST_SIMULATION_GRID, file=paste0(simulation_output_folder, "/simulation_grid_test.csv"))
 simulation_output_file   = "simulation_results_test.RData"
 all_results <- run_complete_simulation(SIMULATION_GRID = TEST_SIMULATION_GRID,
-                                       N_REPLICATIONS = N_REPLICATIONS,
+                                       N_REPLICATIONS = 1,
                                        output_folder= simulation_output_folder,
                                        output_file = simulation_output_file)
 
@@ -145,8 +145,8 @@ input_computation <- generate_input_datasets_simulation(
 ## PARALLEL EXECUTION - ALGORITHM COMPUTATION IN PARALLEL ACROSS CONFIGURATIONS
 #################################################
 # Run from terminal
-# cd /group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-informed-conditional-GGMs/Simulation_analysis
-# Simulation_sequential.sh path_to_input_datasets
+# cd ./Simulation_analysis
+# Simulation_sequential.sh Simulation_results/input_computation_file.csv
 
 #################################################
 ## PARALLEL EXECUTION - CHECK RESULTS PRESENCE
@@ -203,301 +203,13 @@ save(all_results, SIMULATION_GRID, file = paste(simulation_output_folder,simulat
 
 
 #################################################
-## RESULTS ANALYSIS AND VISUALIZATION
+## RESULTS PROCESSING
 #################################################
 
 cat("\nProcessing and analyzing results...\n")
-#load(paste(simulation_output_folder,simulation_output_file, sep="/"))
 processed_data <- process_simulation_results(all_results)
 save(processed_data, file = paste0(simulation_output_folder, "/", "simulation_results_processed.RData"))
 
-# Generate analysis
-cat("Generating plots...\n")
-plots <- generate_analysis_plots(processed_data)
-
-library(forcats)
-# 1. Prot performance by prior type
-#load(paste0(simulation_output_folder, "/", "simulation_results_processed.RData"))
-str(processed_data)
-Prot_delta_data <- processed_data %>%
-  filter(component == "Baseline") %>%
-  filter(symm_method=="OR") %>%
-  mutate(prior_type = fct_relevel(prior_type, "none", "noisy", "perfect"))
-
-# Aggregate by configuration
-delta_summary_data <- Prot_delta_data %>%
-  group_by(n_samples, n_nodes, n_covariates, prior_type, symm_method) %>%
-  summarise(
-    mean_TPR = mean(TPR, na.rm = TRUE),
-    mean_FPR = mean(FPR, na.rm = TRUE),
-    mean_F1 = mean(F1, na.rm = TRUE),
-    mean_Magnitude_preserved= mean(Magnitude_preserved, na.rm = TRUE),
-    mean_Accuracy = mean(Accuracy, na.rm = TRUE),
-    sd_TPR = sd(TPR, na.rm = TRUE),
-    sd_FPR = sd(FPR, na.rm = TRUE),
-    sd_F1 = sd(F1, na.rm = TRUE),
-    sd_Magnitude_preserved = sd(Magnitude_preserved, na.rm = TRUE),
-    sd_Accuracy = sd(Accuracy, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-new_plots <- list()
-
-# TPR comparison for Delta 0
-new_plots$delta_0_tpr_comparison <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_TPR, 
-                                                                   fill = prior_type, color = prior_type)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_errorbar(aes(ymin = pmax(0, mean_TPR - sd_TPR), 
-                    ymax = pmin(1, mean_TPR + sd_TPR), 
-                    colour = prior_type),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_covariates, labeller = label_both)+
-  labs(title = "Performance in network reconstruction: True Positive Rate by Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network for which the prior is provided",
-       x = "Sample Size", y = "True Positive Rate",
-       fill = "Prior Type") +
-  theme_minimal() +
-  guides(colour = "none") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_fpr_comparison <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_FPR, 
-                                                                   fill = prior_type, color = prior_type)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_errorbar(aes(ymin = pmax(0, mean_FPR - sd_FPR), 
-                    ymax = pmin(1, mean_FPR + sd_FPR), 
-                    colour = prior_type),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_covariates, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: Frue Positive Rate by Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network for which the prior is provided",
-       x = "Sample Size", y = "Frue Positive Rate",
-       fill = "Prior Type") +
-  guides(colour = "none")+
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-
-# F1 Score comparison for Delta
-new_plots$delta_0_f1_comparison <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_F1, 
-                                                                  fill = prior_type, color = prior_type)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_errorbar(aes(ymin = pmax(0, mean_F1 - sd_F1), 
-                    ymax = pmin(1, mean_F1 + sd_F1),
-                    color = prior_type),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_covariates, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: F1 Score by Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network for which the prior is provided",
-       x = "Sample Size", y = "F1 Score",
-       fill = "Prior Type") +
-  guides(colour = "none")+
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_error_comparison <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Magnitude_preserved, 
-                                                                     fill = prior_type, color= prior_type)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_errorbar(aes(ymin = pmax(0, mean_Magnitude_preserved - sd_Magnitude_preserved), 
-                    ymax = mean_Magnitude_preserved + sd_Magnitude_preserved,
-                    color= prior_type),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_covariates, labeller = label_both, scales = "free_y") +
-  labs(title = "Performance in network reconstruction: Correlalation by Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network for which the prior is provided",
-       x = "Sample Size", y = "Spearman correlation",
-       fill = "Prior Type") +
-  guides(colour = "none")+
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_accuracy_comparison <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Accuracy, 
-                                                                        fill = prior_type, color= prior_type)) +
-  geom_boxplot(position = position_dodge(0.8)) +
-  geom_errorbar(aes(ymin = pmax(0, mean_Accuracy - sd_Accuracy), 
-                    ymax = mean_Accuracy + sd_Accuracy,
-                    color= prior_type),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_covariates, labeller = label_both, scales = "free_y") +
-  labs(title = "Performance in network reconstruction: Accuracy by Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network for which the prior is provided",
-       x = "Sample Size", y = "Accuracy",
-       fill = "Prior Type") +
-  guides(colour = "none")+
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_accuracy_comparison
-new_plots$delta_0_f1_comparison
-new_plots$delta_0_error_comparison
-
-
-
-delta_component_data <- processed_data %>%
-  filter(component_type == "delta_individual") %>%
-  filter(n_covariates==1) %>%
-  filter(symm_method == "OR")
-delta_component_data <- delta_component_data %>%
-  mutate(prior_type = fct_relevel(prior_type, "none", "noisy", "perfect"))
-
-
-delta_comp_summary <- delta_component_data %>%
-  group_by(component,n_samples, prior_type, n_nodes) %>%
-  summarise(
-    mean_TPR = mean(TPR, na.rm = TRUE),
-    mean_F1 = mean(F1, na.rm = TRUE),
-    mean_Magnitude_preserved = mean(Magnitude_preserved, na.rm = TRUE),
-    mean_accuracy = mean(Accuracy, na.rm = TRUE),
-    sd_TPR = sd(TPR, na.rm = TRUE),
-    sd_F1 = sd(F1, na.rm = TRUE),
-    sd_Magnitude_preserved = sd(Magnitude_preserved, na.rm = TRUE),
-    sd_accuracy = sd(Accuracy, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-new_plots$delta_0_1_component_tpr <- ggplot(delta_comp_summary, aes(x = component, y = mean_TPR, 
-                                                                    fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_TPR - sd_TPR), 
-                    ymax = mean_TPR + sd_TPR),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: TPR by Component and Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network and the single binary covariate",
-       x = "Component", y = "Mean TPR",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_1_component_F1 <- ggplot(delta_comp_summary, aes(x = component, y = mean_F1, 
-                                                                   fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_F1 - sd_F1), 
-                    ymax = mean_F1 + sd_F1),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: F1 by Component and Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network and the single binary covariate",
-       x = "Component", y = "Mean F1",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_1_component_Acc <- ggplot(delta_comp_summary, aes(x = component, y = mean_accuracy, 
-                                                                    fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_accuracy - sd_accuracy), 
-                    ymax = mean_accuracy + sd_accuracy),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: Accuracy by Component and Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network and the single binary covariate",
-       x = "Component", y = "Mean accuracy",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_1_component_error <- ggplot(delta_comp_summary, aes(x = component, y = mean_Magnitude_preserved, 
-                                                                      fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_Magnitude_preserved - sd_Magnitude_preserved), 
-                    ymax = mean_Magnitude_preserved + sd_Magnitude_preserved),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: Correlation by Component and Prior Type",
-       subtitle = "Perfromance metrics measured on the baseline network and the single binary covariate",
-       x = "Component", y = "Spearman correlation",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_0_1_component_Acc
-
-delta_component_data <- processed_data %>%
-  filter(TP + FN == 0) %>%
-  filter(component_type=="delta_individual") %>%
-  filter(n_covariates==3)%>%
-  filter(symm_method=="OR")
-delta_component_data <- delta_component_data %>%
-  mutate(prior_type = fct_relevel(prior_type, "none", "noisy", "perfect"))
-
-
-delta_comp_summary <- delta_component_data %>%
-  group_by(n_samples, prior_type, n_nodes) %>%
-  summarise(
-    mean_fpr = mean(FPR, na.rm = TRUE),
-    mean_accuracy = mean(Accuracy, na.rm = TRUE),
-    sd_fpr = sd(FPR, na.rm = TRUE),
-    sd_accuracy = sd(Accuracy, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-new_plots$delta_null_component_Acc <- ggplot(delta_comp_summary, aes(x = prior_type, y = mean_accuracy, 
-                                                                     fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_accuracy - sd_accuracy), 
-                    ymax = mean_accuracy + sd_accuracy),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: Accuracy by Prior Type",
-       subtitle = "Perfromance metrics measured on the network with zero prec matrix",
-       x = "Component", y = "Mean accuracy",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_null_component_fpr <- ggplot(delta_comp_summary, aes(x = prior_type, y = mean_fpr, 
-                                                                     fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_fpr - sd_fpr), 
-                    ymax = mean_fpr + sd_fpr),
-                position = position_dodge(0.8), width = 0.2) +
-  facet_grid(n_nodes ~ n_samples, labeller = label_both) +
-  labs(title = "Performance in network reconstruction: FPR by Prior Type",
-       subtitle = "Perfromance metrics measured on the network with zero prec matrix",
-       x = "Component", y = "Mean FPR",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-new_plots$delta_null_component_fpr_rest <- ggplot(delta_comp_summary_rest, aes(x = prior_type, y = mean_fpr, 
-                                                                               fill = prior_type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_errorbar(aes(ymin = pmax(0, mean_fpr - sd_fpr), 
-                    ymax = mean_fpr + sd_fpr),
-                position = position_dodge(0.8), width = 0.2) +
-  labs(title = "Performance in network reconstruction: FPR by Prior Type",
-       subtitle = "Perfromance metrics measured on the network with zero prec matrix",
-       x = "Component", y = "Mean FPR",
-       fill = "Prior Type") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5))
-
-
-new_plots$delta_null_component_fpr
 
 #################################################
 ## PREPARE PLOTS FOR THE PAPER
@@ -539,7 +251,7 @@ delta_summary_data <- Prot_delta_data %>%
     .groups = 'drop'
   )
 
-# FIGURE 1
+# FIGURE 2A
 p <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Accuracy,
                                     fill = prior_type, color = prior_type)) +
   geom_boxplot(position = position_dodge(0.8)) +
@@ -575,7 +287,7 @@ p <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Accuracy,
 p
 ggsave(p, filename="Simulation_results/Figure_1.png", width=7, height=5, dpi=300)
 
-# FIGURE 2
+# FIGURE 2B
 p2 <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_F1, 
                                     fill = prior_type, color = prior_type)) +
   geom_boxplot(position = position_dodge(0.8)) +
@@ -605,7 +317,7 @@ p2 <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_F1,
 p2
 ggsave(p2, filename="Simulation_results/Figure_2.png", width=7, height=5, dpi=300)
 
-# FIGURE 3
+# FIGURE 2C
 p3 <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Magnitude_preserved, 
                                      fill = prior_type, color= prior_type)) +
   geom_boxplot(position = position_dodge(0.8)) +
@@ -635,7 +347,7 @@ p3 <- ggplot(delta_summary_data, aes(x = factor(n_samples), y = mean_Magnitude_p
 p3
 ggsave(p3, filename="Simulation_results/Figure_3.png", width=7, height=5, dpi=300)
 
-# FIGURE 4
+# FIGURE 3A
 delta_component_data <- processed_data %>%
   filter(component_type == "delta_individual") %>%
   filter(n_covariates==1) %>%
@@ -683,7 +395,7 @@ p4 <- ggplot(delta_comp_summary, aes(x = component, y = mean_accuracy,
 p4
 ggsave(p4, filename="Simulation_results/Figure_4.png", width=7, height=5, dpi=300)
 
-# FIGURE 5
+# FIGURE 3B
 delta_component_data <- processed_data %>%
   filter(TP + FN == 0) %>%
   filter(component_type=="delta_individual") %>%
@@ -730,7 +442,7 @@ ggsave(p5, filename="Simulation_results/Figure_5.png", width=7, height=5, dpi=30
 
 
 #################################################
-## FIGURE 1: BASELINE NETWORK RECONSTRUCTION PERFORMANCE
+## FIGURE 2: BASELINE NETWORK RECONSTRUCTION PERFORMANCE
 #################################################
 
 library(patchwork)
@@ -764,6 +476,9 @@ fig1
 ggsave("Simulation_results/Figure_1_combined.svg", fig1, width = 8, height = 12, units = "in")
 ggsave("Simulation_results/Figure_1_combined.png", fig1, width = 8, height = 12, units = "in", dpi = 300)
 
+#################################################
+## FIGURE 3: COMPONENT NETWORK RECONSTRUCTION PERFORMANCE
+#################################################
 
 pA <- p4  + labs(title = NULL) + theme(legend.position = "none")
 pB <- p5  + labs(title = NULL) + theme(legend.position = "none")

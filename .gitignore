@@ -4,8 +4,9 @@ T2D_application/
 Simulation_analysis/Simulation_results/
 Simulation_analysis/logs/
 Simulation_analysis/.Rhistory
-.DS_Store
 Simulation_analysis/test/
+Simulation_analysis/Sim_pipeline_run_full.R
+.DS_Store
 Computational_templates/results/
 Computational_templates/CodeTest.R
 Computational_templates/n1000_p10_q1_perfect_OR/

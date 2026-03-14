@@ -23,6 +23,7 @@ library(tidyr)
 #' @param edge_prob Edge probability (for ER)
 #' @param interval Coefficient magnitude range
 #' @param sign_options Sign options for coefficients
+#'
 #' @return Symmetric adjacency matrix with coefficients
 generate_network_structure <- function(
   n_nodes, 
@@ -106,6 +107,7 @@ generate_network_structure <- function(
 #' @param sparsity_prob Probability of non-zero effect
 #' @param effect_mean Mean of non-zero effects
 #' @param effect_sd Standard deviation of non-zero effects
+#'
 #' @return Vector of mean effects
 generate_mean_effects <- function(
   n_nodes, 
@@ -136,6 +138,7 @@ generate_mean_effects <- function(
 #' @param true_adjacency True adjacency matrix (binary)
 #' @param prior_type Type of prior ("perfect", "noisy", "none")
 #' @param noise_params List with parameters for noisy prior
+#'
 #' @return Prior weight matrix (values in [0,1])
 generate_prior_knowledge <- function(
   true_adjacency, 
@@ -203,6 +206,7 @@ generate_prior_knowledge <- function(
 #' @param mean_effects List of mean effect vectors for each covariate
 #' @param precision_matrices List of precision matrices for each covariate
 #' @param covariate_values List of covariate values for each sample
+#'
 #' @return List with simulated data and individual precision matrices
 simulate_subject_data <- function(
   n_samples, 
@@ -266,6 +270,7 @@ simulate_subject_data <- function(
 #' Calculate evaluation metrics for binary classification
 #' @param true_matrix True binary adjacency matrix
 #' @param estimated_matrix Estimated binary adjacency matrix
+#'
 #' @return List of metrics (TPR, FPR, F1, etc.)
 calculate_binary_metrics <- function(
   true_matrix,
@@ -304,6 +309,7 @@ calculate_binary_metrics <- function(
 #' Calculate evaluation metrics for binary classification (for vectors)
 #' @param true_vector True binary vector
 #' @param estimated_vector Estimated binary vector
+#'
 #' @return List of metrics (TPR, FPR, F1, etc.)
 calculate_binary_metrics_vector <- function(
   true_vector,
@@ -337,6 +343,7 @@ calculate_binary_metrics_vector <- function(
 #' Calculate Frobenius norm error
 #' @param true_matrix True matrix
 #' @param estimated_matrix Estimated matrix
+#'
 #' @return Frobenius norm of difference
 calculate_frobenius_error <- function(
   true_matrix,
@@ -349,6 +356,7 @@ calculate_frobenius_error <- function(
 #' Calculate vector norm error (L2 norm)
 #' @param true_vector True vector
 #' @param estimated_vector Estimated vector
+#'
 #' @return L2 norm of difference
 calculate_vector_error <- function(
   true_vector,
@@ -361,6 +369,7 @@ calculate_vector_error <- function(
 #' Evaluate mean effects estimation for each covariate
 #' @param true_mean_effects List of true mean effect vectors for each covariate
 #' @param estimated_mean_effects Matrix of estimated mean effects (p x q+1)
+#'
 #' @return List of evaluation metrics for mean effects
 evaluate_mean_effects <- function(
   true_mean_effects,
@@ -442,6 +451,7 @@ evaluate_mean_effects <- function(
 #' Evaluate Magnitude Preservation in Estimated Precision Matrix
 #' @param true_matrix True binary adjacency matrix
 #' @param estimated_matrix Estimated binary adjacency matrix
+#'
 #' @return spearman correlation of the two
 calculate_magnitude_preserved <- function(
   true_matrix, 
@@ -473,6 +483,7 @@ calculate_magnitude_preserved <- function(
 #' @param estimated_Delta_list List of estimated precision coefficient matrices
 #' @param true_Gamma True mean coefficient matrix
 #' @param estimated_Gamma Estimated mean coefficient matrix
+#'
 #' @return List of evaluation metrics
 evaluate_estimation <- function(
   true_Delta_list, 
@@ -538,6 +549,7 @@ evaluate_estimation <- function(
 #' @param network_config List specifying network generation parameters
 #' @param prior_config List specifying prior knowledge parameters
 #' @param seed Random seed for reproducibility
+#'
 #' @return Complete simulation dataset and metadata
 generate_simulation_dataset <- function(
   n_samples, 
@@ -546,12 +558,15 @@ generate_simulation_dataset <- function(
   network_config,
   prior_config,
   seed = NULL, 
-  output_path = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Simulation_results",
+  output_path = "./Simulation_results",
   name_output = "ggReg_result"
   )
 {
   
   if (!is.null(seed)) set.seed(seed)
+  if(!dir.exists(output_path)){
+    dir.create(output_path)
+  }
   
   # Validate inputs
   if (n_samples < 10) stop("n_samples must be at least 10")
@@ -738,6 +753,7 @@ generate_simulation_dataset <- function(
 #' @param mean_effects List of mean effect vectors for each covariate
 #' @param precision_matrices List of precision matrices for each covariate
 #' @param covariate_values List of covariate values for each sample
+#'
 #' @return List with simulated data and individual precision matrices
 simulate_subject_data_robust <- function(
   n_samples, 
@@ -828,6 +844,7 @@ simulate_subject_data_robust <- function(
 #' @param true_precision_coef True precision coefficient matrix for outcome
 #' @param outcome_var Name of outcome variable
 #' @param feature_type Type of features to use ("proteins", "interactions", "both")
+#'
 #' @return List with prediction performance AUC metrics for LASSO and stability selection
 validate_data_prediction_performance <- function(
   sim_data, 
@@ -922,7 +939,6 @@ validate_data_prediction_performance <- function(
 }
 
 
-
 #################################################
 ## SIMULATION EXECUTION FUNCTIONS
 #################################################
@@ -931,12 +947,15 @@ validate_data_prediction_performance <- function(
 #' @param config Single row from simulation grid
 #' @param rep_id Replication ID
 #' @param seed Random seed for this replicate
+#' @param output_path Path to save results and plots
+#' @param name_output Base name for output files
+#'
 #' @return List of results for this replicate
 run_single_simulation <- function(
   config,
   rep_id,
   seed,
-  output_path = "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Simulation_results",
+  output_path = "./Simulation_results",
   name_output = "ggReg_result"
   ) 
 {
@@ -1077,12 +1096,16 @@ run_single_simulation <- function(
 }
 
 #' Run complete simulation study
+#' @param SIMULATION_GRID Data frame with simulation configurations
+#' @param N_REPLICATIONS Number of replications per configuration
+#' @param output_folder Folder to save results and plots
 #' @param output_file File to save results
+#'
 #' @return List of all simulation results
 run_complete_simulation <- function(
   SIMULATION_GRID = TEST_SIMULATION_GRID,
   N_REPLICATIONS = N_REPLICATIONS,
-  output_folder= "/group/diangelantonio/users/alessia_mapelli/Prot_graphs/UKB_data/APP_82779/Simulation_results",
+  output_folder= "./Simulation_results",
   output_file = "simulation_results.RData")
 {
   
@@ -1103,7 +1126,7 @@ run_complete_simulation <- function(
                                     config$n_samples, config$n_nodes, config$n_covariates,
                                     config$prior_type, config$symm_method)
     ggReg_output_path <- paste(output_folder,"/", ggReg_output_folder,"/", sep ="")
-    dir.create(ggReg_output_path)
+    dir.create(ggReg_output_path, recursive = TRUE)
     
     for (rep in 1:N_REPLICATIONS) {
       current_sim <- current_sim + 1
@@ -1151,6 +1174,7 @@ run_complete_simulation <- function(
 
 #' Process simulation results into analysis-ready format
 #' @param results List of simulation results
+#'
 #' @return Data frame with processed results
 process_simulation_results <- function(
   results
@@ -1316,6 +1340,7 @@ process_simulation_results <- function(
 
 #' Generate comprehensive analysis plots
 #' @param processed_data Processed simulation results
+#'
 #' @return List of ggplot objects
 generate_analysis_plots <- function(
   processed_data
@@ -1389,7 +1414,7 @@ generate_analysis_plots <- function(
     guides(colour = "none")+
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-}
+  }
   
   # 2. Overall Mean performance by prior type
   overall_mean_data <- processed_data[processed_data$component_type == "mean_overall", ]
@@ -1633,6 +1658,7 @@ generate_analysis_plots <- function(
 
 #' Generate summary tables
 #' @param processed_data Processed simulation results
+#'
 #' @return List of summary tables
 generate_summary_tables <- function(
   processed_data
@@ -1802,6 +1828,7 @@ generate_summary_tables <- function(
 #' @param N_REPLICATIONS Number of replications per configuration
 #' @param output_folder Base folder to save simulation input data
 #' @param output_file Name of the output file to save the list of input data for computations
+#'
 #' @return Dataframe with paths to input data for computations
 generate_input_datasets_simulation <- function(
   SIMULATION_GRID,
@@ -1960,6 +1987,7 @@ generate_input_datasets_simulation <- function(
 #' @param output_path Path to the output folder where GGReg results are saved
 #' @param name_output Name of the output file to identify the results
 #' @param symm_method Symmetrization method used in GGReg estimation
+#'
 #' @return List with evaluation results and computational time
 #' 
 collect_and_evaluate_resuts <- function(

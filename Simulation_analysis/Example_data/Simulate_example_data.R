@@ -1,5 +1,4 @@
 # Simulation Pipeline for Test Data in Prior-informed Covariate-Dependent Gaussian Graphical Models
-setwd("/group/diangelantonio/users/alessia_mapelli/Complete_projects/Prior-informed-conditional-GGMs/")
 rm(list = ls(all = TRUE))
 library(fs)
 
@@ -15,7 +14,7 @@ SIMULATION_GRID <- expand.grid(
   n_samples = c(1000),
   n_nodes = c(10),
   prior_type = c("perfect"),
-  n_covariates = c(1),  # 1=binary only, 3=2 continuous + 1 binary, 5=3 continuous (1 no effect) + 2 binary(1 no effect)
+  n_covariates = c(1),  
   symm_method = c("OR"), 
   stringsAsFactors = FALSE
 )
