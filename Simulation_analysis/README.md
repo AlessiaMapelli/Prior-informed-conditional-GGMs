@@ -65,3 +65,21 @@ bash Simulation_sequential.sh Simulation_results/input_computation_file.csv
 The script reads the CSV row by row (skipping the header) and for each row submits a SLURM array job via `sbatch --array=1-${p}`, where `p` is the number of nodes. It enforces a cap of 100 concurrent jobs (`JOBS_LIMIT`), pausing submission for 2 minutes whenever the limit is reached. Each submitted job runs `slurm_ggReg_node.sbatch` with the input data path, output path, and job name read from the CSV.
 
 The script also supports a commented-out alternative mode to process only a specific range of CSV lines (useful for resubmitting failed jobs).
+
+---
+
+## `Example_data/`
+
+### `Example_data/Simulate_example_data.R`
+
+This script generates the example dataset presented with the `Computational_templates` folder to illustrate the method's usage on a small, self-contained case.
+
+It uses the same simulation infrastructure as the full study (`Sim_functions.R`) but with a minimal configuration: 10 nodes, 1000 observations, 1 binary covariate, and a perfect prior, run for a single replication. The covariate-specific network is generated with a slightly higher edge probability (0.1 vs 0.05) to ensure a non-null covariate effect at this small scale.
+
+After generating the input data, the script extracts and renames the three objects needed by `Computational_templates`:
+
+- `expression_data` — the simulated multivariate Gaussian observations (n × p matrix)
+- `covariate_data` — the covariate matrix (n × q, with the binary covariate stored as a factor)
+- `ppi_weight_matrix` — the prior weight matrix encoding edge confidence scores
+
+These are saved both as an `.RData` file (`Example_data.RData`) and as plain-text CSV/TXT files (`expression_data.csv`, `covariate_data.csv`, `ppi_weight_matrix.txt`) directly into the `Computational_templates` folder. Intermediate simulation folders are deleted at the end, leaving only the final example files.
