@@ -6,3 +6,8 @@ Simulation_analysis/logs/
 Simulation_analysis/.Rhistory
 .DS_Store
 Simulation_analysis/test/
+Computational_templates/results/
+Computational_templates/CodeTest.R
+Computational_templates/n1000_p10_q1_perfect_OR/
+
+

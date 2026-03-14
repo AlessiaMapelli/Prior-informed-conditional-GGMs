@@ -1,6 +1,6 @@
 # ggReg: Prior-Informed Conditional Gaussian Graphical Regression
 
-**Associated publication:** *Incorporating prior knowledge into Conditional GGM: an application to Protein Interaction Networks* 
+**Associated publication:** *Prior-Informed Conditional Gaussian Graphical Models for Personalized Protein Interaction Network Reconstruction* 
 
 ---
 
@@ -59,6 +59,11 @@ source("ggReg_main_functions.R")
 
 ### Basic Usage
 
+Test data can be loaded via: 
+```r
+load("Example_data.RData")
+```
+
 The entire pipeline is accessible through a single entry-point function: `GGReg_full_estimation()`.
 
 **Minimal call — standard GGM, no covariates or prior:**
@@ -90,14 +95,15 @@ The function automatically selects the computation strategy based on the number 
 `GGReg_full_estimation()` returns a list with two components:
 
 - **`results`**: the primary outputs for downstream use
-  - `Cov_effect`: estimated covariate effects on the mean (p × q matrix)
+  - `Cov_effect`: estimated covariate effects on the mean (p × (q+1) matrix)
   - `Dic_adj_matrics`: named list of partial-correlation adjacency matrices, one per covariate effect plus `"Baseline"`
 
-- **`additional_info`**: diagnostic and intermediate outputs
-  - `z`: residuals from mean estimation
+- **`additional_info`**: diagnostic and intermediate outputs. Of note:
   - `Dic_Delta_hat`: symmetrized precision matrices per covariate effect
   - `Sigma_hat`: estimated node-wise residual variances
   - `optimal_params`: best `(α, ϑ)` and BIC per node
+  - `scaling_params`: scale parameters for the continuos varaibles
+  - `dummy_params`: dummy coding for the categorical variables
 
 ---
 
@@ -106,16 +112,18 @@ The function automatically selects the computation strategy based on the number 
 Once the model is estimated, generate a subject-specific network using `predict_personalized_network()`:
 
 ```r
-new_subject <- data.frame(age = 52, sex = "Female", bmi = 27.4)
+new_subjects <- data.frame(x1=c(0,1))
+new_subjects$x1 <- as.factor(new_subjects$x1)
 
 personal_net <- predict_personalized_network(
-  Dic_Delta_hat        = results$additional_info$Dic_Delta_hat,
-  training_covariates  = covariate_data,
-  new_subject_covariates = new_subject
+  Dic_adj_matrics        = results$results$Dic_adj_matrics,
+  new_subject_covariates = new_subjects,
+  scaling_params = results$additional_info$scaling_params,
+  dummy_params = results$additional_info$dummy_params
 )
 ```
 
-The function handles covariate scaling and dummy encoding automatically, matching the preprocessing applied during training.
+The function handles covariate scaling and dummy encoding automatically, matching the preprocessing applied during training and return the personalized adjacency matrix for each subject included in the new_subjects data.frame.
 
 ---
 
@@ -124,19 +132,21 @@ The function handles covariate scaling and dummy encoding automatically, matchin
 Two utility functions are provided for network exploration:
 
 ```r
+# Visualize a single network component
+plot_personalized_network(
+  network   = results$results$Dic_adj_matrics$Baseline,
+)
+
 # Visualize a single personalized network
 plot_personalized_network(
-  network   = personal_net,
-  labels    = protein_names,
-  threshold = 0.05,
-  main      = "Subject-specific PPI network"
+  network   = personal_net$Subject_1,
 )
 
 # Compare two networks (e.g., two subjects or conditions)
-plot_network_difference(network1 = net_A, network2 = net_B, labels = protein_names)
+plot_network_difference(network1 = personal_net$Subject_1, network2 = personal_net$Subject_2)
 
 # Compute a summary comparison metric
-compare_networks(net_A, net_B, method = "frobenius")  # also: "difference", "correlation"
+compare_networks(network1 = personal_net$Subject_1, network2 = personal_net$Subject_2, method = "frobenius")  # also: "difference", "correlation"
 ```
 
 ---
@@ -167,14 +177,14 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 |---|---|---|
 | `known_ppi` | `NULL` | Prior confidence matrix `[0,1]`; `NULL` disables prior |
 | `covariates` | `NULL` | Covariate data frame; `NULL` estimates a standard GGM |
-| `scr` | `TRUE` | Correlation-based pre-screening to reduce problem size |
+| `scr` | `FALSE` | Correlation-based pre-screening to reduce problem size |
 | `gamma` | `NULL` | Screening threshold; `NULL` uses the 20th percentile |
-| `tune_hyperparams` | `TRUE` | Tune `α` and `ϑ` via BIC |
-| `asparse_grid` | `c(0.5, 0.75, 0.9, 0.95)` | Grid for the group/element sparsity balance `α` |
-| `weight_grid` | `c(0.8, 1.0, 1.1, 1.3, 1.5)` | Grid for the prior weight scaling `ϑ` |
+| `tune_hyperparams` | `TRUE` | Tune `α` and `ϑ` via BIC. If `FALSE` take `asparse_grid[1]` and `weight_grid[1]` as parameters|
+| `asparse_grid` | `c(0.75, 0.5, 0.9, 0.95)` | Grid for the group/element sparsity balance `α` |
+| `weight_grid` | `c(1.0, 0.8, 1.1, 1.3, 1.5)` | Grid for the prior weight scaling `ϑ` |
 | `random_hyper_search` | `FALSE` | Use random search instead of full grid for hyperparameter tuning |
 | `symm_method` | `"OR"` | Symmetrization rule: `"OR"` (less conservative) or `"AND"` |
-| `use_slurm` | `TRUE` | Use SLURM for HPC parallelization |
+| `use_slurm` | `FALSE` | Use SLURM for HPC parallelization |
 
 ---
 
