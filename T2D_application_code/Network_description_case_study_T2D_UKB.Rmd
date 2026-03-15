@@ -1,0 +1,659 @@
+---
+title: "Network Analysis Report"
+subtitle: "`r params$outcome_of_interest`"
+author: "Alessia Mapelli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: flatly
+    fig_width: 10
+    fig_height: 8
+  pdf_document:
+    toc: true
+    fig_width: 10
+    fig_height: 8
+params:
+  original_data_path: "UKB_proteo_T2D.RData"
+  net_res_path: "./results/PPI_T2D_app.RData"
+  outcome_of_interest: "DiabIncident"
+  base_output_dir: "./results/Network_description"
+  color_plots_1: "#4361ee"
+  color_plots_2: "#3a0ca3"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = 'center',
+  cache = FALSE
+)
+
+# Load required libraries
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(dplyr)
+library(ggplot2)
+library(backbone)
+library(RColorBrewer)
+library(poweRlaw)
+library(knitr)
+library(kableExtra)
+```
+
+```{r load-data}
+# Set working directory and load data setwd(params$base_output_dir)
+
+# Create output folder for this specific outcome
+foldname <- file.path(params$base_output_dir, params$outcome_of_interest)
+dir.create(foldname, recursive = TRUE, showWarnings = FALSE)
+
+# Load network results
+cat("Loading data from:", params$net_res_path, "\n")
+load(params$net_res_path)
+cat("Loading data from:", params$original_data_path, "\n")
+load(params$original_data_path)
+
+
+# Extract results
+mean_res <- results$results$Cov_effect
+prec_res <- results$results$Dic_adj_matrics
+outcome_of_interest <- params$outcome_of_interest
+prot_names <- colnames(results$additional_info$z)
+
+cat("Analysis for outcome:", outcome_of_interest, "\n")
+cat("Number of proteins:", length(prot_names), "\n")
+```
+
+# 1. Mean Effects Analysis
+
+```{r mean-effects-analysis}
+cat("Mean effects matrix dimensions:", dim(mean_res), "\n")
+
+# Show first row of mean results
+cat("First protein mean effects:\n")
+print(head(mean_res[1,]))
+
+# Check the R-squared values for the regression of each protein on covariates
+covariates <- selection_data[, !(names(selection_data) %in% prot_names | names(selection_data) == "id")]
+str(covariates)
+ 
+numeric_columns <- sapply(covariates, is.numeric)
+covariates[, numeric_columns] <- scale(covariates[, numeric_columns])
+C <- model.matrix(~ ., covariates)
+ 
+r2_vec <- sapply(1:length(prot_names), function(p) {
+  y <- selection_data[, prot_names[p]]
+  beta <- as.numeric(mean_res[p,])
+  yhat <- as.numeric(as.matrix(C) %*% beta)
+  ss_res <- sum((y - yhat)^2)
+  ss_tot <- sum((y - mean(y))^2)
+  1 - ss_res / ss_tot
+})
+ 
+cat("R-squared summary:\n")
+print(summary(r2_vec))
+
+# Identify proteins with non-zero covariate effects
+cov_eff <- mean_res[, outcome_of_interest]
+names(cov_eff) <- prot_names
+cov_eff <- cov_eff[cov_eff != 0]
+prot_cov_eff_mean <- names(cov_eff)
+
+cat("Number of proteins with non-zero effects:", length(prot_cov_eff_mean), "\n")
+
+if(length(prot_cov_eff_mean) > 0) {
+  mean_effects_table <- data.frame(
+    Protein = prot_cov_eff_mean,
+    Effect = cov_eff[prot_cov_eff_mean]
+  )
+  
+  kable(head(mean_effects_table[order(abs(mean_effects_table$Effect), decreasing = TRUE), ], 10), caption = "Top 10 Proteins with Non-Zero Mean Effects", digits = 4) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+}
+```
+
+# 2. Network Construction and Basic Properties
+
+```{r network-construction}
+# Create network from precision matrix
+outcome_matrix <- as.matrix(abs(prec_res[[outcome_of_interest]]))
+cat("Matrix is symmetric:", isSymmetric(outcome_matrix, check.attributes = FALSE), "\n")
+
+# Create igraph object
+g_abs <- graph_from_adjacency_matrix(
+  outcome_matrix, 
+  mode = "max", 
+  diag = FALSE, 
+  weighted = TRUE, 
+  add.colnames = NA, 
+  add.rownames = NULL
+)
+
+# Basic network statistics
+edge_density_val <- edge_density(g_abs, loops = FALSE)
+diameter_val <- diameter(g_abs, directed = FALSE, weights = NA)
+
+network_stats <- data.frame(
+  Metric = c("Nodes", "Edges", "Edge Density", "Diameter"),
+  Value = c(
+    vcount(g_abs),
+    ecount(g_abs),
+    round(edge_density_val, 4),
+    diameter_val
+  )
+)
+
+kable(network_stats, caption = "Basic Network Statistics") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+cat("Nodes (V):", vcount(g_abs), "\n")
+cat("Edges (E):", ecount(g_abs), "\n")
+cat("Edge density:", round(edge_density_val, 4), "\n")
+cat("Diameter:", diameter_val, "\n")
+```
+
+## Network Visualization
+
+```{r network-plots, fig.width=12, fig.height=6}
+# Create layout
+layout <- layout_nicely(g_abs)
+
+# Save basic network plot
+plot_name <- file.path(foldname, paste0("Plots_graph_", outcome_of_interest, ".jpg"))
+jpeg(plot_name, width = 485, height = 485)
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = params$color_plots_1,
+     vertex.size = 10,
+     vertex.frame.color = params$color_plots_1,
+     vertex.label.color = "black",
+     vertex.label.cex = 0.5,
+     vertex.label.dist = 0,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0))
+dev.off()
+
+# Plot with mean effects highlighted
+vertex_colors <- rep(params$color_plots_1, vcount(g_abs))
+vertex_colors[V(g_abs)$name %in% prot_cov_eff_mean] <- params$color_plots_2
+
+plot_name <- file.path(foldname, paste0("Plots_graph_", outcome_of_interest, "_with_mean_effects.jpg"))
+jpeg(plot_name, width = 485, height = 485)
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = vertex_colors,
+     vertex.size = 10,
+     vertex.frame.color = vertex_colors,
+     vertex.label.color = "black",
+     vertex.label.cex = 0.5,
+     vertex.label.dist = 0,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0))
+dev.off()
+
+# Display plots in report
+par(mfrow = c(1, 2))
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = params$color_plots_1,
+     vertex.size = 10,
+     vertex.frame.color = params$color_plots_1,
+     vertex.label.color = "black",
+     vertex.label.cex = 0.5,
+     vertex.label.dist = 0,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0),
+     main = "Basic Network Structure")
+
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = vertex_colors,
+     vertex.size = 10,
+     vertex.frame.color = vertex_colors,
+     vertex.label.color = "black",
+     vertex.label.cex = 0.5,
+     vertex.label.dist = 0,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0),
+     main = "Network with Mean Effects Highlighted")
+```
+
+## Network Visualization - Paper Figure
+
+```{r network-plots-paper, fig.width=12, fig.height=6}
+nodes_plot_label <- match(V(g_abs)$name, prot_names)
+V(g_abs)$plot_label <- nodes_plot_label
+
+V(g_abs)$diab_influence <- ifelse(V(g_abs)$name %in% prot_cov_eff_mean, "Influenced by T2D", "Not influenced by T2D")
+
+nod_legend <- data.frame(nodes_names = V(g_abs)$name, label= match(V(g_abs)$name, prot_names))
+filename <- paste(foldname, "/Node_legend.txt", sep="")
+write.table(nod_legend, file=filename)
+
+library(scales)  
+w <- E(g_abs)$weight
+w[is.na(w)] <- 0
+E(g_abs)$w_scaled <- rescale(w, to = c(0, 1))
+
+plot_name <- file.path(paste0(foldname, "/Opt_plots_graph_", outcome_of_interest, "_scaled_edges_with_mean_effects.png"))
+
+layout_figure_paper <- create_layout(g_abs, layout = 'graphopt') 
+
+p <- ggraph(layout_figure_paper) +
+  geom_edge_link(
+    aes(edge_colour = w_scaled,
+        edge_width = w_scaled,
+        edge_alpha = w_scaled),
+    show.legend = TRUE
+  ) +
+  
+  scale_edge_colour_gradient(
+    low = "white",
+    high = "black",
+    name = "Scaled weight"
+  ) +
+  
+  scale_edge_width(range = c(0.2, 2.0), guide = "none") +
+  scale_edge_alpha(range = c(0.25, 1), guide = "none") +
+  
+geom_node_point(aes(color = diab_influence), size = 4) +
+  
+  scale_color_manual(
+    name = "Mean effect",
+    values = c(
+      "Not influenced by T2D" = params$color_plots_1,
+      "Influenced by T2D"     = params$color_plots_2
+    )
+  ) +
+  
+  ggtitle("Protein-Protein Interaction Network") +
+  theme_void() +
+  theme(
+    plot.margin = margin(0,0,0,0),
+    plot.title = element_text(hjust = 0.5, vjust = 1),
+    legend.position = "right"
+  )
+
+print(p)
+
+ggsave(p, filename=plot_name, width=12, height=8, dpi=300)
+
+```
+
+
+## Edge Weight Distribution
+
+```{r edge-distribution}
+# Analyze edge weights
+UP <- outcome_matrix[upper.tri(outcome_matrix, diag = FALSE)]
+non_zero_edges <- sum(UP != 0)
+
+edge_stats <- data.frame(
+  Statistic = c("Min", "1st Qu.", "Median", "Mean", "3rd Qu.", "Max", "Non-zero edges"),
+  Value = c(summary(UP), non_zero_edges)
+)
+
+kable(edge_stats, caption = "Edge Weight Statistics", digits = 4) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Plot edge weight distribution
+par(mfrow = c(1, 2))
+hist(UP, breaks = 100, main = "Edge Weight Distribution", xlab = "Edge Weight", col = params$color_plots_1)
+plot(density(UP), main = "Edge Weight Density", xlab = "Edge Weight", col = params$color_plots_2, lwd = 2)
+```
+
+# 3. Community Detection
+
+```{r community-detection, fig.width=10, fig.height=8}
+# Community detection using fast greedy algorithm
+cfg <- cluster_fast_greedy(as.undirected(g_abs))
+V(g_abs)$community <- cfg$membership
+
+num_communities <- length(unique(cfg$membership))
+cat("Number of communities detected:", num_communities, "\n")
+
+# Community size distribution
+community_sizes <- table(cfg$membership)
+community_stats <- data.frame(
+  Community = names(community_sizes),
+  Size = as.numeric(community_sizes)
+)
+
+kable(head(community_stats[order(community_stats$Size, decreasing = TRUE), ], 10), 
+      caption = "Top 10 Largest Communities", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Create color palette for communities
+if (num_communities <= 12) {
+  colrs <- brewer.pal(max(3, num_communities), "Paired")[1:num_communities]
+} else {
+  # fallback for many communities
+  colrs <- hue_pal()(num_communities)
+}
+
+# Save community plot
+plot_name <- file.path(foldname, paste0("Plots_graph_", outcome_of_interest, "_community_det.jpg"))
+jpeg(plot_name, width = 485, height = 485)
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = colrs[V(g_abs)$community],
+     vertex.size = 5,
+     vertex.frame.color = colrs[V(g_abs)$community],
+     vertex.label = NA,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0))
+dev.off()
+
+# Display community plot in report
+plot(g_abs,
+     layout = layout,
+     edge.arrow.size = 1,
+     vertex.color = colrs[V(g_abs)$community],
+     vertex.size = 5,
+     vertex.frame.color = colrs[V(g_abs)$community],
+     vertex.label = NA,
+     edge.curved = 0.2,
+     edge.color = "gray",
+     edge.width = 0.1,
+     margin = c(0, 0, 0, 0),
+     main = paste("Community Structure (", num_communities, "communities)"))
+```
+
+## Community Visualization - Paper Figure
+```{r community-visualization-paper, fig.width=10, fig.height=8}
+g_tbl <- as_tbl_graph(g_abs) %>%
+  activate(nodes) %>%
+  mutate(community = factor(V(g_abs)$community),
+         node_label = V(g_abs)$plot_label)
+
+plot_name <- file.path(paste0(foldname, "/Opt_plots_graph_", outcome_of_interest, "_community_det.jpg"))
+ggsave(p, filename=plot_name, width=8, height=8, dpi=300) 
+
+# Basic network plot
+plot_name <- file.path(paste0(foldname, "/Plots_graph_", outcome_of_interest, "_community_det_weighted.png"))
+
+p <- ggraph(g_tbl, layout = "graphopt") +
+  geom_edge_link(aes(edge_colour = w_scaled, edge_width = w_scaled, edge_alpha = w_scaled),
+    show.legend = TRUE) +
+  scale_edge_colour_gradient(low = "white", high = "black", name = "Scaled weight") +
+  geom_node_point(aes(color = community), size = 4) +
+  scale_color_manual(values = colrs, name = "Community") +
+  #geom_node_text(aes(label = node_label), size = 3, repel = TRUE) +
+  scale_edge_width(range = c(0.2, 2.0), guide = "none") +
+  scale_edge_alpha(range = c(0.25, 1), guide = "none") +
+  ggtitle("Communities – Protein-Protein Interaction Network") +
+  theme_void() +
+  theme(plot.margin = margin(0,0,0,0),
+    plot.title  = element_text(hjust = 0.5, vjust = 1))
+
+print(p)
+
+ggsave(p, filename=plot_name, width=12, height=8, dpi=300)
+
+```
+
+# 4. Node Centrality Analysis
+
+```{r centrality-analysis}
+# Calculate centrality measures
+node_topology_summary <- data.frame(
+  Node = V(g_abs)$name,
+  cfg_community = V(g_abs)$community
+)
+
+idx <- match(node_topology_summary$Node, V(g_abs)$name)
+
+# Calculate various centrality measures
+deg <- degree(g_abs, mode = "all")
+node_topology_summary$degree <- deg[idx]
+
+eigen_centrality_result <- eigen_centrality(g_abs)
+eigen_centrality_scores <- eigen_centrality_result$vector
+node_topology_summary$eigen_centrality <- eigen_centrality_scores[idx]
+
+# Handle weights for weighted measures
+weights <- NULL
+if (is.null(weights) && "weight" %in% edge_attr_names(g_abs)) {
+  distL <- 1/E(g_abs)$weight
+  weights <- E(g_abs)$weight
+} else if(!is.null(weights) && any(!is.na(weights))) {
+  distL <- 1/as.numeric(weights)
+  weights <- as.numeric(weights)
+} else {
+  distL <- NA
+  weights <- NA
+}
+
+node_topology_summary$page.rank <- as.numeric(page.rank(
+  graph = g_abs,
+  vids = V(g_abs),
+  directed = FALSE,
+  weights = weights
+)$vector[idx])
+
+node_topology_summary$betweenness <- as.numeric(betweenness(
+  g_abs, 
+  directed = FALSE, 
+  weights = distL
+)[idx])
+
+node_topology_summary$hub_score <- hub_score(g_abs)$vector[idx]
+
+# Normalize centrality measures
+node_topology_summary$eigen_centrality_normalized <- scale(node_topology_summary$eigen_centrality)[, 1]
+node_topology_summary$page_rank_normalized <- scale(node_topology_summary$page.rank)[, 1]
+node_topology_summary$betweenness_normalized <- scale(node_topology_summary$betweenness)[, 1]
+node_topology_summary$degree_normalized <- scale(node_topology_summary$degree)[, 1]
+node_topology_summary$av_centrality <- rowMeans(node_topology_summary[, c(
+  "degree_normalized", "eigen_centrality_normalized", 
+  "page_rank_normalized", "betweenness_normalized"
+)])
+
+# Summary statistics for centrality measures
+centrality_summary <- node_topology_summary %>%
+  select(degree, eigen_centrality, page.rank, betweenness, hub_score, av_centrality) %>%
+  summary()
+
+cat("Average centrality summary:\n")
+print(summary(node_topology_summary$av_centrality))
+```
+
+## Centrality Distributions
+
+```{r centrality-plots, fig.width=12, fig.height=8}
+# Create ggplot histograms for centrality measures
+p1 <- ggplot(node_topology_summary, aes(degree)) + 
+  geom_histogram(fill = params$color_plots_1, alpha = 0.7) + 
+  theme_bw(12) + 
+  labs(title = "Degree Distribution")
+
+p2 <- ggplot(node_topology_summary, aes(page.rank)) + 
+  geom_histogram(fill = params$color_plots_1, alpha = 0.7) + 
+  theme_bw(12) + 
+  labs(title = "PageRank Distribution")
+
+p3 <- ggplot(node_topology_summary, aes(betweenness)) + 
+  geom_histogram(fill = params$color_plots_1, alpha = 0.7) + 
+  theme_bw(12) + 
+  labs(title = "Betweenness Distribution")
+
+p4 <- ggplot(node_topology_summary, aes(eigen_centrality)) + 
+  geom_histogram(fill = params$color_plots_1, alpha = 0.7) + 
+  theme_bw(12) + 
+  labs(title = "Eigenvector Centrality Distribution")
+
+# Display plots
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+## Top Influential Nodes Analysis
+
+```{r top-nodes-analysis}
+# Identify top 10% nodes based on average centrality
+threshold_centrality <- quantile(node_topology_summary$av_centrality, 0.90)
+top_10_percent_nodes <- node_topology_summary[node_topology_summary$av_centrality > threshold_centrality, ]$Node
+node_topology_summary$top_10_percent_central_nodes <- node_topology_summary$av_centrality > threshold_centrality
+
+# Identify top 10% nodes based on hub score
+threshold_hub <- quantile(node_topology_summary$hub_score, 0.90)
+top_10_percent_nodes_hub <- node_topology_summary[node_topology_summary$hub_score > threshold_hub, ]$Node
+node_topology_summary$top_10_percent_hub_nodes <- node_topology_summary$hub_score > threshold_hub
+
+# Find intersection of top central and hub nodes
+overlap_count <- sum(top_10_percent_nodes %in% top_10_percent_nodes_hub)
+top_influential_nodes <- top_10_percent_nodes[top_10_percent_nodes %in% top_10_percent_nodes_hub]
+
+cat("Top 10% central nodes:", length(top_10_percent_nodes), "\n")
+cat("Top 10% hub nodes:", length(top_10_percent_nodes_hub), "\n")
+cat("Overlap between central and hub nodes:", overlap_count, "\n")
+cat("Top influential nodes (intersection):", length(top_influential_nodes), "\n")
+
+# Display top influential nodes
+if(length(top_influential_nodes) > 0) {
+  top_nodes_info <- node_topology_summary[node_topology_summary$Node %in% top_influential_nodes, 
+                                         c("Node", "degree", "eigen_centrality", "page.rank", "betweenness", "hub_score", "av_centrality")]
+  
+  kable(top_nodes_info, caption = "Top Influential Nodes (Central + Hub)", digits = 4, row.names = FALSE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"))
+}
+```
+
+## Top Nodes Subgraph Visualization and Important Interactions retrieval
+
+```{r top-nodes-subgraph, fig.width=10, fig.height=8}
+# Create and visualize subgraph of top influential nodes
+if(length(top_influential_nodes) > 0) {
+  subgraph <- induced_subgraph(g_abs, vids = top_influential_nodes, impl = "copy_and_delete")
+  
+  subgraph_layout <- layout_nicely(subgraph)
+  
+  # Save top nodes plot
+  plot_name <- file.path(foldname, paste0("Plots_graph_", outcome_of_interest, "_top_nodes.jpg"))
+  jpeg(plot_name, width = 485, height = 485)
+  plot(subgraph,
+       layout = subgraph_layout,
+       edge.arrow.size = E(subgraph)$weight,
+       vertex.color = params$color_plots_1,
+       vertex.size = 10,
+       vertex.frame.color = params$color_plots_2,
+       vertex.label.color = "black",
+       vertex.label.cex = 0.8,
+       vertex.label.dist = 0,
+       edge.curved = 0.2,
+       edge.color = "gray",
+       edge.width = E(subgraph)$weight * 20,
+       margin = c(0, 0, 0, 0))
+  dev.off()
+  
+  # Display in report
+  plot(subgraph,
+       layout = subgraph_layout,
+       edge.arrow.size = 1,
+       vertex.color = params$color_plots_1,
+       vertex.size = 10,
+       vertex.frame.color = params$color_plots_2,
+       vertex.label.color = "black",
+       vertex.label.cex = 0.8,
+       vertex.label.dist = 0,
+       edge.curved = 0.2,
+       edge.color = "gray",
+       edge.width = 2,
+       margin = c(0, 0, 0, 0),
+       main = "Subgraph of Top Influential Nodes")
+} else {
+  cat("No top influential nodes found.\n")
+}
+thr <- quantile(UP, 0.99, na.rm = TRUE)
+sel_edges <- E(subgraph)[E(subgraph)$weight > thr]
+if (length(sel_edges) > 0) {
+  e_ends <- ends(subgraph, sel_edges, names = TRUE)   # matrix: first col = "first" node
+  important_df <- tibble(
+      Node = e_ends[, 1],
+      important_interaction = paste0(e_ends[, 1], "*", e_ends[, 2])
+    ) %>%
+    distinct() %>%                                 # drop accidental duplicates
+    group_by(Node) %>%
+    summarise(important_interaction = paste(important_interaction, collapse = "+"),
+              .groups = "drop")
+} else {
+  important_df <- tibble(Node = character(), important_interaction = character())
+}
+node_topology_summary <- node_topology_summary %>%
+  left_join(important_df, by = "Node")
+```
+
+## Top Nodes Subgraph Visualization - Paper Figure
+```{r top-nodes-subgraph-paper-figure, fig.width=10, fig.height=8}
+if(length(top_influential_nodes) > 0) {
+  # Save top nodes plot
+  plot_name <- file.path(foldname, paste0("Opt_plots_graph_", outcome_of_interest, "_top_nodes_with_weigths.jpg"))
+  
+  g_tbl <- as_tbl_graph(subgraph) %>%
+  activate(nodes) %>%
+  mutate(community = factor(V(subgraph)$community),
+         node_label = V(subgraph)$plot_label,
+         node_name = V(subgraph)$name)
+  
+  layout <- create_layout(g_tbl, layout = 'graphopt') 
+  p <- ggraph(layout) +
+    geom_edge_link(aes(edge_colour = w_scaled, edge_width = w_scaled, edge_alpha = w_scaled),
+    show.legend = TRUE) +
+  scale_edge_colour_gradient(low = "white", high = "black", name = "Scaled weight") +
+    geom_node_point(color = params$color_plots_1, size = 4) +
+    geom_node_text(aes(label = node_name), size = 4, repel = TRUE) +
+      scale_edge_width(range = c(0.2, 2.0), guide = "none") +
+  scale_edge_alpha(range = c(0.25, 1), guide = "none") +
+    ggtitle("Top nodes - Protein-Protein Interaction Network") +
+    theme_void() +
+    theme(plot.margin = margin(0,0,0,0),
+      plot.title  = element_text(hjust = 0.5, vjust = 1))
+
+  print(p)
+  
+  ggsave(p, filename=plot_name, width=12, height=8, dpi=300)
+  
+  cat("Subgraph nodes:", vcount(subgraph), "\n")
+  cat("Subgraph edges:", ecount(subgraph), "\n")
+}
+```
+
+# 5. Summary and Export
+
+```{r summary-export}
+# Save node topology summaries
+file_name_original <- file.path(foldname, paste0("Summary_node_topology_", outcome_of_interest, ".csv"))
+write.csv(node_topology_summary, file_name_original, row.names = FALSE)
+
+cat("Node topology summaries saved:\n")
+cat("  Original network:", file_name_original, "\n")
+```
+
+**Generated on:** `r Sys.time()`
+
+**Analysis Parameters:**
+- Data file: `r params$net_res_path`
+- Outcome: `r params$outcome_of_interest`
+- Output directory: `r foldname`
+- Colors: Primary = `r params$color_plots_1`, Secondary = `r params$color_plots_2`
