@@ -49,15 +49,6 @@ for (i in 1:nrow(incident_training_data)) {
 
 test_data <- anti_join(remaining_data, train_data)
 
-prop.table(table(train_data$Diab))
-table(test_data$Diab)
-
-head(selection_data)
-
-# CHECK
-write.table(selection_data$id, "Selection_data_id.txt", col.names = F)
-write.table(train_data$id, "Train_data_id.txt",col.names = F)
-write.table(test_data$id, "Test_data_id.txt",col.names = F)
 
 # Load the prior matrix procedded from STRING database
 STRING_prior <- readMM("STRING_W")
@@ -99,5 +90,5 @@ results <- GGReg_full_estimation(
 
 output_path = "./results/"
 selection_data=selection_data[,-3]
-save(results, selection_data, file = paste0(output_path, "PPI_T2D_app.RData"))
+save(results, selection_data, train_data, test_data, file = paste0(output_path, "PPI_T2D_app.RData"))
 

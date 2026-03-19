@@ -16,9 +16,9 @@ output:
     fig_width: 10
     fig_height: 8
 params:
-  original_data_path: "UKB_proteo_T2D.RData"
   net_res_path: "./results/PPI_T2D_app.RData"
   outcome_of_interest: "DiabIncident"
+  logistic_outcome: "Diab"
   base_output_dir: "./results/Network_description"
   color_plots_1: "#4361ee"
   color_plots_2: "#3a0ca3"
@@ -56,15 +56,15 @@ dir.create(foldname, recursive = TRUE, showWarnings = FALSE)
 # Load network results
 cat("Loading data from:", params$net_res_path, "\n")
 load(params$net_res_path)
-cat("Loading data from:", params$original_data_path, "\n")
-load(params$original_data_path)
-
+#Load expression dataframes called "selection_data", "train_data", "test_data" with 366 protein expression data and 3 covariates ("Sex", "Age", "Diab")
+# and the results from the network inference in a list called "results"
 
 # Extract results
 mean_res <- results$results$Cov_effect
 prec_res <- results$results$Dic_adj_matrics
 outcome_of_interest <- params$outcome_of_interest
 prot_names <- colnames(results$additional_info$z)
+logistic_outcome <- params$logistic_outcome
 
 cat("Analysis for outcome:", outcome_of_interest, "\n")
 cat("Number of proteins:", length(prot_names), "\n")
@@ -639,7 +639,7 @@ if(length(top_influential_nodes) > 0) {
 }
 ```
 
-# 5. Summary and Export
+# 5. Export node topology summaries
 
 ```{r summary-export}
 # Save node topology summaries
@@ -648,6 +648,265 @@ write.csv(node_topology_summary, file_name_original, row.names = FALSE)
 
 cat("Node topology summaries saved:\n")
 cat("  Original network:", file_name_original, "\n")
+```
+
+# 6. Biological Interpretation of the top Nodes
+```{r differential-expression-analysis}
+n_test <- length(prot_names)
+p.values_unadj <- rep(NA, n_test)
+fold_changes <- rep(NA, n_test)
+for (i in 1:n_test){
+  selection_data[, prot_names[i]] <- selection_data[, prot_names[i]] + -(min(selection_data[, prot_names[i]]))
+  group1 <- selection_data[selection_data[[logistic_outcome]] == levels(selection_data[[logistic_outcome]])[1], prot_names[i]]
+  group2 <- selection_data[selection_data[[logistic_outcome]] == levels(selection_data[[logistic_outcome]])[2], prot_names[i]]
+  
+  p.values_unadj[i] <- wilcox.test(group1, group2, paired = FALSE, alternative = 'two.sided', correct = TRUE)$p.value
+  
+  fold_changes[i] <- median(group2, na.rm=TRUE) / median(group1, na.rm=TRUE)
+}
+
+p.values_BH <- p.adjust(p.values_unadj,method = "BH")
+decision_BH <- rep("Do not reject H0",n_test)
+decision_BH[p.values_BH<=0.01] <- "Reject H0"
+cat(paste0("Number of proteins significantly different between groups (BH adjusted p <= 0.01):", sum(decision_BH == "Reject H0"), "\n"))
+
+differential_expression_data <- data.frame(
+  protein = prot_names,
+  p_value = p.values_BH,
+  fold_change = fold_changes
+)
+
+differential_expression_data$m_log_p_value <- -log10(as.numeric(differential_expression_data$p_value))
+differential_expression_data$index <- 1:nrow(differential_expression_data) 
+differential_expression_data$m_log_p_value <- replace(differential_expression_data$m_log_p_value, is.infinite(differential_expression_data$m_log_p_value), 320)
+differential_expression_data$diffexpressed <- differential_expression_data$p_value < 0.01
+differential_expression_data$fold_change <- abs(replace(differential_expression_data$fold_change, is.infinite(differential_expression_data$fold_change), 320))
+differential_expression_data$log_fold_change <- log2(differential_expression_data$fold_change)
+file_name_original <- file.path(foldname, paste0("Summary_differential_expression_", logistic_outcome, ".csv"))
+write.csv(differential_expression_data, file_name_original, row.names = FALSE)
+
+differential_expression_data$delabel <- ifelse(differential_expression_data$protein %in% head(differential_expression_data[order(differential_expression_data$p_value), "protein"], 30), differential_expression_data$protein, NA)
+
+library(ggrepel)
+p <- ggplot(differential_expression_data, aes(x = log_fold_change, y = m_log_p_value, color = diffexpressed, label = delabel)) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = -log10(0.01), col = "gray", linetype = 'dashed') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Protein differential expression (log2 FC)", y = "Significance ( -log10 p-value)", title = "Results of the multiple test procedure corrected by BH") +
+  coord_cartesian(ylim = c(0, 325)) +
+  theme_bw()+
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )+
+  geom_text_repel(max.overlaps = Inf) +
+  annotate("text", x = 0, y = 330, label = paste("Prontein differentially expressed:", sum(decision_BH == "Reject H0"), " over ", length(decision_BH)), size = 4, hjust = 0.5)
+print(p)
+
+plot_name <- file.path(paste0(foldname, "/Plots_differential_expression_", logistic_outcome, ".png"))
+ggsave(p, filename=plot_name, width=12, height=8, dpi=300)
+```
+
+```{r biological-interpretation-top-nodes}
+###################################
+# 2. EXTARCT THE DIASESE LINKED TO EACH INFLUENT NODE
+# From: https://disgenet.com/
+# Following Piñero, J., Bravo, À., Queralt-Rosinach, N., Gutiérrez-Sacristán, A., Deu-Pons, J., Centeno, E., ... & Furlong, L. I. (2016). DisGeNET: a comprehensive platform integrating information on human disease-associated genes and variants. Nucleic acids research, gkw943.
+###################################
+```
+
+# 7. Prediction of the outcome of interest based on the top nodes
+
+## Cohorts summary
+```{r cohort_desctiption}
+cat("=== TRAINING SET ===\n")
+cat("Outcome distribution:\n")
+print(table(train_dataset[[logistic_outcome]], useNA = "ifany"))
+cat("\nGender distribution:\n")
+print(table(train_dataset$Sex, useNA = "ifany"))
+cat("\nAge distribution:\n")
+print(summary(train_dataset$Age))
+
+cat("\n=== TEST SET ===\n")
+cat("Outcome distribution:\n")
+print(table(test_dataset[[logistic_outcome]], useNA = "ifany"))
+cat("\nGender distribution:\n")
+print(table(test_dataset$Sex, useNA = "ifany"))
+cat("\nAge distribution:\n")
+print(summary(test_dataset$Age))
+```
+
+## Helper functions for model evaluation and fitting
+```{r helper_functions}
+library(pROC)
+library(ggplot2)
+# Helper function to evaluate model performance
+evaluate_model <- function(predictions, actual, model_name, sample_label) {
+    ROC_curve <- roc(response = actual, predictor = predictions,
+                     levels = c(0,1), smooth=FALSE, quiet = TRUE)
+    
+    best <- pROC::coords(ROC_curve, x="best", ret = c("threshold","specificity","sensitivity"))
+    
+    predicted_class <- ifelse(predictions > as.numeric(best["threshold"]), 1, 0)
+    confusion.matrix <- table(Predicted = predicted_class, Observed = actual)
+    
+    # Handle cases where confusion matrix might not be 2x2
+    TN <- ifelse("0" %in% rownames(confusion.matrix) && "0" %in% colnames(confusion.matrix),
+                 confusion.matrix["0","0"], 0)
+    FP <- ifelse("1" %in% rownames(confusion.matrix) && "0" %in% colnames(confusion.matrix),
+                 confusion.matrix["1","0"], 0)
+    FN <- ifelse("0" %in% rownames(confusion.matrix) && "1" %in% colnames(confusion.matrix),
+                 confusion.matrix["0","1"], 0)
+    TP <- ifelse("1" %in% rownames(confusion.matrix) && "1" %in% colnames(confusion.matrix),
+                 confusion.matrix["1","1"], 0)
+    
+    ci_auc <- ci.auc(ROC_curve)
+    
+    return(data.frame(
+      Model = model_name,
+      Sample = sample_label,
+      TP = TP,
+      TN = TN,
+      FP = FP,
+      FN = FN,
+      AUC = as.numeric(auc(ROC_curve)),
+      L_CI_AUC = as.numeric(ci_auc)[1],
+      U_CI_AUC = as.numeric(ci_auc)[3],
+      optimal_threshold = unname(best["threshold"]),
+      spec = unname(best["specificity"]),
+      sens = unname(best["sensitivity"]),
+      stringsAsFactors = FALSE
+    ))
+
+}
+
+# Helper function to fit and evaluate models
+fit_and_evaluate_model <- function(train_data, test_data, formula, model_name) {
+  tryCatch({
+    # Fit model
+    mod.glm <- glm(formula, family=binomial(link=logit), data = train_data)
+    
+    print(summary(mod.glm))
+    
+    # Training predictions
+    Y.pred.train <- predict(mod.glm, newdata = train_data, type = 'response')
+    train_results <- evaluate_model(Y.pred.train, train_data[[logistic_outcome]], 
+                                   model_name, "Train")
+    
+    # Test predictions
+    Y.pred.test <- predict(mod.glm, newdata = test_data, type = 'response')
+    test_results <- evaluate_model(Y.pred.test, test_data[[logistic_outcome]], 
+                                  model_name, "Test")
+    
+    # Store risk scores
+    risk_score_train <- data.frame("id" = train_data$id, value = Y.pred.train)
+    names(risk_score_train)[2] <- model_name
+    risk_scores_train <<- merge(risk_scores_train, risk_score_train, by="id", all.x=TRUE)
+    
+    risk_score_test <- data.frame("id" = test_data$id, value = Y.pred.test)
+    names(risk_score_test)[2] <- model_name
+    risk_scores_test <<- merge(risk_scores_test, risk_score_test, by="id", all.x=TRUE)
+    
+    return(rbind(train_results, test_results))
+    
+  }, error = function(e) {
+    warning(paste("Error fitting model", model_name, ":", e$message))
+    return(data.frame(
+      Model = rep(model_name, 2), Sample = c("Train", "Test"), 
+      TP = NA, TN = NA, FP = NA, FN = NA, AUC = NA, L_CI_AUC = NA, 
+      U_CI_AUC = NA, optimal_threshold = NA, spec = NA, sens = NA,
+      stringsAsFactors = FALSE
+    ))
+  })
+}
+# Helper function to create ROC curve data frame for plotting
+make_roc_df <- function(y, p, n_grid = 200) {
+  roc_obj <- roc(y, p, quiet = TRUE)
+
+  # ROC band (CI of sensitivity at fixed specificities)
+  ci_roc <- ci.se(roc_obj, specificities = seq(0, 1, length.out = n_grid))
+
+  df <- data.frame(
+    specificity = as.numeric(rownames(ci_roc)),
+    lower = ci_roc[, 1],
+    mid   = ci_roc[, 2],
+    upper = ci_roc[, 3]
+  )
+  df$fpr <- 1 - df$specificity
+
+  auc_val <- as.numeric(auc(roc_obj))
+  auc_ci  <- as.numeric(ci.auc(roc_obj))  # c(lower, mid, upper)
+
+  list(
+    df = df,
+    auc = auc_val,
+    auc_ci = auc_ci
+  )
+}
+```
+
+## Protein score based on the proteins selected via network FS
+```{r risk-prediction}
+model_name   <- paste0("prot_network_FS_", logistic_outcome)
+temp_train_dataset <- train_dataset[,c(logistic_outcome, top_influential_nodes)]
+temp_train_dataset <- na.omit(temp_train_dataset)
+temp_test_dataset <- test_dataset[,c(logistic_outcome, top_influential_nodes)]
+temp_test_dataset <- na.omit(temp_test_dataset)
+
+cat(paste0("Model trained on ", nrow(temp_train_dataset), " samples, the disease is developed in ", as.numeric(table(temp_train_dataset[,logistic_outcome])[2]), " patients.\n"))
+cat(paste0("Model tested on ", nrow(temp_test_dataset), " samples, the disease is developed in ", as.numeric(table(temp_test_dataset[,logistic_outcome])[2]), " patients.\n"))
+
+formula <- paste0(logistic_outcome, " ~ .")
+results <- fit_and_evaluate_model(temp_train_dataset, temp_test_dataset, formula, model_name)
+
+AUC_results <- results[, c("Model", "Sample", "AUC", "L_CI_AUC", "U_CI_AUC")]
+kable(AUC_results, caption = "Model Performance Metrics", digits = 4, row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+#Plot ROC curves for train and test sets
+Y.pred.train <- predict(mod.glm, newdata = temp_train_dataset, type = 'response')
+Y.pred.test <- predict(mod.glm, newdata = temp_test_dataset, type = 'response')
+train_res <- make_roc_df(temp_train_dataset[[logistic_outcome]], Y.pred.train)
+test_res  <- make_roc_df(temp_test_dataset[[logistic_outcome]],  Y.pred.test)
+
+train_df <- transform(train_res$df, split = "Train")
+test_df  <- transform(test_res$df,  split = "Test")
+plot_df  <- rbind(train_df, test_df)
+
+# Legend labels with AUC and CI(AUC)
+lab_train <- sprintf("Train AUC = %.3f [%.3f, %.3f]",
+                     train_res$auc, train_res$auc_ci[1], train_res$auc_ci[3])
+lab_test  <- sprintf("Test AUC = %.3f [%.3f, %.3f]",
+                     test_res$auc, test_res$auc_ci[1], test_res$auc_ci[3])
+plot_df$split_lab <- ifelse(plot_df$split == "Train", lab_train, lab_test)
+
+line_cols <- c(setNames("#3a0ca3", lab_train), setNames("#3f1e7d", lab_test))
+fill_cols <- c(setNames("#4361ee", lab_train), setNames("#8683bd", lab_test))
+
+p <- ggplot(plot_df, aes(x = fpr, y = mid, group = split_lab)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = split_lab),
+              alpha = 0.25, colour = NA) +
+  geom_line(aes(color = split_lab), linewidth = 1.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  coord_equal() +
+  scale_color_manual(values = line_cols, name = NULL) +
+  scale_fill_manual(values = fill_cols, name = NULL) +
+  labs(
+    x = "False Positive Rate",
+    y = "True Positive Rate",
+    title = "ROC curves (Train vs Test) with 95% CI"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom"
+  ) +
+  guides(
+    color = guide_legend(ncol = 1),
+    fill  = guide_legend(ncol = 1)
+  )
+
+print(p)
+plot_name <- file.path(paste0(foldname, "/Plots_ROC_curves_", model_name, ".png"))
+ggsave(p, filename=plot_name, width=12, height=8, dpi=300)
 ```
 
 **Generated on:** `r Sys.time()`
