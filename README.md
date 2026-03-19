@@ -2,8 +2,12 @@
 
 This repository contains all code to reproduce the results of the paper:
 
-> **Prior-Informed Conditional Gaussian Graphical Models for Personalized Protein Interaction Network Reconstruction**
-> Alessia Mapelli — Politecnico di Milano
+> **Prior-informed conditional gaussian graphical models for personalized protein interaction network reconstruction**
+>
+> Alessia Mapelli<sup>1,2,∗</sup>, Michela Carlotta Massi<sup>2</sup>, Gianmauro Cuccuru<sup>2</sup>, Emanuele Di Angelantonio<sup>2</sup>, Francesca Ieva<sup>1,2</sup>
+>
+> <sup>1</sup> MOX, Department of Mathematics, Politecnico di Milano, Milan, Italy
+> <sup>2</sup> Health Data Science Research Centre, Human Technopole, Milan, Italy
 
 ---
 
@@ -77,4 +81,4 @@ See `T2D_application_code/README.md` for details.
 
 If you use this code, please cite:
 
-> Mapelli, A. *Prior-Informed Conditional Gaussian Graphical Models for Personalized Protein Interaction Network Reconstruction*. Draft, Politecnico di Milano.
+> Mapelli, A. *Prior-informed conditional gaussian graphical models for personalized protein interaction network reconstruction*. Draft, Politecnico di Milano.
