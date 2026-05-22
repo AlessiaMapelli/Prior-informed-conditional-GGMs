@@ -15,8 +15,9 @@ library(foreach)
 #' @param x Expression data - data frame; nrow: subjects; ncol: features
 #' @param known_ppi Previously available knowledge on interaction - matrix of values [0,1] that describe the confeidence of interaction existing; ncol: features, nrow: features. If NULL, no prior knowledge is used (default NULL)
 #' @param covariates Covariates to regress on - data frame; nrow: subjects; ncol: covariates). If NULL, no covariates are included in the model (default NULL)
-#' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
-#' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
+#' @param scr Logical indicating whether to perform screening based on either correlation or an user inputed matrix to speed up estimation - Logical; default FALSE
+#' @param gamma Pearson correlation threshold for screening if based on correlation (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
+#' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param mean_estimation Logical indicating whether to perform mean estimation, can be set to false if the input data have a null mean  - Logical; (default TRUE)
 #' @param lambda_mean Penalization term in Lasso for mean estimation (if mean_estimation = TRUE) - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_mean_type Type of lambda selection for mean estimation when using cross-validation for optimizing (if mean_estimation = TRUE) - Character; "1se" or "min" (default "1se")
@@ -96,6 +97,7 @@ GGReg_full_estimation <- function(
   covariates = NULL,
   scr = FALSE,
   gamma = NULL,
+  scr_matrix = NULL,
   mean_estimation = TRUE,
   lambda_mean = NULL,
   lambda_mean_type = "min",
@@ -118,6 +120,16 @@ GGReg_full_estimation <- function(
     cat("=== Starting GGReg Full Estimation ===\n")
   }
   time.start <- Sys.time()
+  if (!is.null(known_ppi)) {
+    if (any(known_ppi < 0)) {
+      warning("known_ppi contains negative values: setting them to 0.")
+      known_ppi[known_ppi < 0] <- 0
+    }
+    if (any(known_ppi > 1)) {
+      warning("known_ppi contains values greater than 1: normalizing by the maximum.")
+      known_ppi <- known_ppi / max(known_ppi)
+    }
+  }
   if(mean_estimation){
     if (verbose) {cat("Estimating the mean\n")}
     # Step 1: Estimate mean
@@ -142,6 +154,7 @@ GGReg_full_estimation <- function(
       covariates = covariates,
       scr = scr,
       gamma = gamma,
+      scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
       lambda_prec_type = lambda_prec_type,
       tune_hyperparams = tune_hyperparams,
@@ -167,6 +180,7 @@ GGReg_full_estimation <- function(
       covariates = covariates,
       scr = scr,
       gamma = gamma,
+      scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
       lambda_prec_type = lambda_prec_type,
       tune_hyperparams = tune_hyperparams,
@@ -189,6 +203,7 @@ GGReg_full_estimation <- function(
       covariates = covariates,
       scr = scr,
       gamma = gamma,
+      scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
       lambda_prec_type = lambda_prec_type,
       tune_hyperparams = tune_hyperparams,
@@ -508,6 +523,7 @@ GGReg_mean_estimation <- function(
 #' @param covariates Covariates to regress on - data frame; nrow: subjects; ncol: covariates). If NULL, no covariates are included in the model (default NULL)
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
+#' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -537,6 +553,7 @@ GGReg_cov_estimation_SLURM <- function(
   covariates = NULL,
   scr = FALSE,
   gamma = NULL,
+  scr_matrix = NULL,
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
@@ -565,7 +582,7 @@ GGReg_cov_estimation_SLURM <- function(
   }
   # Save all input data for each SLURM jobs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   if (verbose) {
@@ -616,6 +633,7 @@ GGReg_cov_estimation_SLURM <- function(
 #' @param covariates Covariates to regress on - data frame; nrow: subjects; ncol: covariates). If NULL, no covariates are included in the model (default NULL)
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
+#' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -645,6 +663,7 @@ GGReg_cov_estimation_sequential <- function(
   covariates = NULL,
   scr = TRUE,
   gamma = NULL,
+  scr_matrix = NULL,
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
@@ -673,7 +692,7 @@ GGReg_cov_estimation_sequential <- function(
   
   # Save all input data for individual node runs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K, 
        file = input_data_path)
   
@@ -719,6 +738,7 @@ GGReg_cov_estimation_sequential <- function(
 #' @param covariates Covariates to regress on - data frame; nrow: subjects; ncol: covariates). If NULL, no covariates are included in the model (default NULL)
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
+#' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -747,6 +767,7 @@ GGReg_cov_estimation_parallel <- function(
   covariates = NULL,
   scr = TRUE,
   gamma = NULL,
+  scr_matrix = NULL,
   lambda_prec = NULL,
   lambda_prec_type = "min",
   tune_hyperparams = TRUE,
@@ -778,7 +799,7 @@ GGReg_cov_estimation_parallel <- function(
   
   # Save all input data for individual node runs
   input_data_path <<- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   
@@ -832,7 +853,7 @@ GGReg_cov_estimation_parallel <- function(
 #'
 #' Individual node estimation function for the neighboorhood selection in the GGReg model with optional hyperparameter tuning, designed to be called for each node in parallel (e.g., via SLURM or foreach) or sequentially.
 #'
-#' @param input_data_path Path to the input data file containing Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K (saved as an RDA file) - Character
+#' @param input_data_path Path to the input data file containing Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K (saved as an RDA file) - Character
 #' @param node_index Index of the node to be processed - Numeric (1-based index from 1 to p)
 #' @param output_path Directory where the output for the node will be saved - Character
 #' @param name_output Base name for the output file for the node - Character
@@ -865,7 +886,7 @@ GGReg_cov_single_node_processing <- function(
   #################################################
   if(verbose){cat("Loading input data...\n")}
   load(input_data_path)
-  # This loads: Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+  # This loads: Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
   #             tune_hyperparams, asparse_grid, weight_grid, K
   n <- nrow(Z0)
   p <- ncol(Z0)
@@ -936,6 +957,12 @@ GGReg_cov_single_node_processing <- function(
   }
 
   if (scr) {
+    if(!is.null(scr_matrix)){
+      if(verbose){cat("Using provided screening matrix for feature selection...\n")}
+      scr_index <- as.matrix(scr_matrix)
+      colnames(scr_index) <- colnames(Z0)
+      rownames(scr_index) <- colnames(Z0)
+    } else {
     if(verbose){cat("Computing correlation matrix for screening...\n")}
     protdata_matrix <- as.matrix(Z0)
     Scor <- cor(protdata_matrix)
@@ -948,7 +975,8 @@ GGReg_cov_single_node_processing <- function(
     colnames(scr_index) <- colnames(Z0)
     rownames(scr_index) <- colnames(Z0)
     if(verbose){cat("Screening threshold (gamma):", gamma, "\n")}
-  }
+    }
+    }
 
   #################################################
   ## Build Design Matrix
@@ -999,6 +1027,8 @@ GGReg_cov_single_node_processing <- function(
     zero_col_indices <- which(scr_index[i, ] == 0)
     zero_col_names <- colnames(scr_index)[zero_col_indices]
     for (j in zero_col_names) {
+      j_idx <- which(colnames(Z0) == j)
+      if (one[i, j_idx]) next  # Never screen out prior-supported edges
       pattern <- paste0(":", j, "\\b")
       indexes_to_select[grepl(pattern, colnames(interM))] <- FALSE
       indexes_to_select[colnames(interM) == j] <- FALSE

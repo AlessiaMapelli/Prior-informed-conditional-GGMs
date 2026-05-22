@@ -177,8 +177,9 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 |---|---|---|
 | `known_ppi` | `NULL` | Prior confidence matrix `[0,1]`; `NULL` disables prior |
 | `covariates` | `NULL` | Covariate data frame; `NULL` estimates a standard GGM |
-| `scr` | `FALSE` | Correlation-based pre-screening to reduce problem size |
-| `gamma` | `NULL` | Screening threshold; `NULL` uses the 20th percentile |
+| `scr` | `FALSE` | Pre-screening to reduce problem size (correlation-based or via `scr_matrix`) |
+| `gamma` | `NULL` | Correlation screening threshold; `NULL` uses the 20th percentile. Ignored if `scr_matrix` is provided |
+| `scr_matrix` | `NULL` | Custom screening matrix `{0,1}`; entry `(j,k)=0` excludes feature `k` from node `j`'s regression. Overrides correlation-based screening when provided. Prior-supported edges (`known_ppi > 0`) are never screened out regardless |
 | `tune_hyperparams` | `TRUE` | Tune `α` and `ϑ` via BIC. If `FALSE` take `asparse_grid[1]` and `weight_grid[1]` as parameters|
 | `asparse_grid` | `c(0.75, 0.5, 0.9, 0.95)` | Grid for the group/element sparsity balance `α` |
 | `weight_grid` | `c(1.0, 0.8, 1.1, 1.3, 1.5)` | Grid for the prior weight scaling `ϑ` |
