@@ -1,6 +1,8 @@
 .DS_Store
 
 T2D_application/
+T2D_application_metab/
+T2D_application_prot/
 Simulation_analysis/Simulation_results/
 Simulation_analysis/logs/
 Simulation_analysis/.Rhistory
