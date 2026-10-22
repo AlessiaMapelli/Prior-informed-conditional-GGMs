@@ -494,8 +494,8 @@ GGReg_mean_estimation <- function(
           res.glm <- Y - cbind(1, C) %*% mean_reg_coeff
           Cov_effect[i, ] <- as.vector(mean_reg_coeff)
         } else {
-          mod <- glmnet(x = C, y = Y, lambda = lambda_mean, relax = TRUE)
-          mean_reg_coeff <- mod$beta[, 1]
+          mod <- glmnet(x = C, y = Y, lambda = lambda_mean)
+          mean_reg_coeff <- coef(mod, s = lambda_mean)[, 1]  # intercept + slopes
           res.glm <- Y - cbind(1, C) %*% mean_reg_coeff
           Cov_effect[i, ] <- as.vector(mean_reg_coeff)
         }
@@ -968,7 +968,8 @@ GGReg_cov_single_node_processing <- function(
     Scor <- cor(protdata_matrix)
     scr_index <- matrix(1, p, p)
     if (is.null(gamma)) {
-      gamma <- quantile(abs(Scor), probs = 0.2)
+      # 20th percentile of the p*(p-1)/2 pairwise correlations (no diagonal)
+      gamma <- quantile(abs(Scor[upper.tri(Scor)]), probs = 0.2)
     }
     scr_index[abs(Scor) <= gamma] <- 0
     diag(scr_index) <- 0
@@ -1016,23 +1017,20 @@ GGReg_cov_single_node_processing <- function(
   Y <- matrix(Z0[, i], ncol = 1)
   protname <- colnames(Z0)[i]
 
-  # Select features (exclude self-loops and screened features)
-  pattern <- paste0(":", protname, "\\b")
-  indexes_to_select <- !grepl(pattern, colnames(interM))
-  indexes_to_select[colnames(interM) == protname] <- FALSE
-  indexes_to_select_penalty <- rep(TRUE, ncol(Z0))
-  indexes_to_select_penalty[colnames(Z0) == protname] <- FALSE
+  # Select features by position (exclude self-loops and screened features).
+  # Columns of interM: intercept, then one block of p columns per component
+  # (baseline and each covariate), so node k sits at 1 + b*p + k in block b.
+  node_columns <- function(k) 1 + (0:q) * p + k
+  indexes_to_select <- rep(TRUE, ncol(interM))
+  indexes_to_select[node_columns(i)] <- FALSE
+  indexes_to_select_penalty <- rep(TRUE, p)
+  indexes_to_select_penalty[i] <- FALSE
 
   if (scr) {
-    zero_col_indices <- which(scr_index[i, ] == 0)
-    zero_col_names <- colnames(scr_index)[zero_col_indices]
-    for (j in zero_col_names) {
-      j_idx <- which(colnames(Z0) == j)
-      if (one[i, j_idx]) next  # Never screen out prior-supported edges
-      pattern <- paste0(":", j, "\\b")
-      indexes_to_select[grepl(pattern, colnames(interM))] <- FALSE
-      indexes_to_select[colnames(interM) == j] <- FALSE
-      indexes_to_select_penalty[colnames(Z0) == j] <- FALSE
+    for (j_idx in which(scr_index[i, ] == 0)) {
+      if (j_idx == i || one[i, j_idx]) next  # Never screen out prior-supported edges
+      indexes_to_select[node_columns(j_idx)] <- FALSE
+      indexes_to_select_penalty[j_idx] <- FALSE
     }
   }
 
@@ -1418,11 +1416,13 @@ collect_node_results <- function(
   }
   
   # Build dictionary of Delta matrices (same as original)
+  # The OR/AND choice is based on the regression coefficients (Eq. 18)
   Dic_Delta_hat <- build_delta_dictionary(
     No_sim_Delta_hat,
     node_result$groups,
     node_result$U_names,
     symm_method,
+    ref = Prec_reg_matrix,
     verbose = verbose)
 
   Dic_adj_matrics <- build_delta_dictionary(
@@ -1453,6 +1453,7 @@ collect_node_results <- function(
 #' @param groups A vector indicating the group membership of each column in No_sim_Delta_hat (e.g., which columns correspond to which covariates) - numeric vector; length: ncol(No_sim_Delta_hat)
 #' @param U_names A vector of names corresponding to the groups in 'groups' (e.g., covariate names) - character vector; length: number of unique groups in 'groups'
 #' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND"
+#' @param ref Matrix of the same size as No_sim_Delta_hat whose absolute values decide, for each pair, which directional estimate is kept: the larger one with "OR", the smaller one with "AND". Pass the regression coefficients (Prec_reg_matrix) to follow Eq. 18 of the Supplement - matrix; If NULL, No_sim_Delta_hat itself is used (default NULL)
 #' @param verbose Logical indicating whether to print detailed progress messages during dictionary construction - Logical; default FALSE
 #'
 #' @return A list containing:
@@ -1466,23 +1467,28 @@ build_delta_dictionary <- function(
   groups,
   U_names,
   symm_method,
-  verbose = FALSE) 
+  ref = NULL,
+  verbose = FALSE)
 {
   if (verbose) {
     cat(paste0("Building delta dictionary using ",symm_method," as symmetrization method \n"))
   }
+  if (is.null(ref)) {
+    ref <- No_sim_Delta_hat
+  }
   Dic_Delta_hat <- list()
   fact_groups <- as.factor(groups)
-  
+
   for (k in 2:length(levels(fact_groups))) {
     id <- levels(fact_groups)[k]
     key <- U_names[k]
     value <- No_sim_Delta_hat[, fact_groups == id]
+    ref_value <- ref[, fact_groups == id]
     if(symm_method == "OR"){
-      choose_original <- abs(value) >= abs(t(value))
+      choose_original <- abs(ref_value) >= abs(t(ref_value))
       sim_value <- ifelse(choose_original, value, t(value))
     } else {
-      choose_original <- abs(value) < abs(t(value))
+      choose_original <- abs(ref_value) < abs(t(ref_value))
       sim_value <- ifelse(choose_original, value, t(value))
     }
     Dic_Delta_hat[[key]] <- sim_value
@@ -1532,14 +1538,22 @@ plot_personalized_network <- function(
   dimnames(network_plot) <- list(labels, labels)
   # Use heatmap or similar visualization
   if (requireNamespace("corrplot", quietly = TRUE)) {
-    corrplot::corrplot(network_plot, method = "color", 
-                      is.corr = FALSE, 
-                      tl.col = "black",
-                      tl.srt = 45,
-                      tl.cex = 0.8,
-                      title = main,
-                      mar = c(0, 0, 2, 0),
-                      cl.pos = "r")
+    # Symmetric colour range; also avoids a corrplot error on all-zero matrices
+    lim <- max(abs(network_plot))
+    if (lim == 0) lim <- 1
+    withCallingHandlers(
+      corrplot::corrplot(network_plot, method = "color",
+                        is.corr = FALSE,
+                        col.lim = c(-lim, lim),
+                        tl.col = "black",
+                        tl.srt = 45,
+                        tl.cex = 0.8,
+                        title = main,
+                        mar = c(0, 0, 2, 0),
+                        cl.pos = "r"),
+      warning = function(w) {
+        if (grepl("col.lim interval too wide", conditionMessage(w))) invokeRestart("muffleWarning")
+      })
   } else {
     # Fallback to base R heatmap
     heatmap(network_plot, main = main, 
@@ -1626,16 +1640,24 @@ plot_network_difference <- function(
   
   # Use heatmap or similar visualization
   if (requireNamespace("corrplot", quietly = TRUE)) {
-    corrplot::corrplot(diff_network, 
-                      method = "color", 
-                      is.corr = FALSE,
-                      tl.col = "black",      
-                      tl.srt = 45,           
-                      tl.cex = 0.8,       
-                      title = main,
-                      mar = c(0, 0, 2, 0),
-                      addgrid.col = "gray",  
-                      cl.pos = "r")         
+    # Symmetric colour range; also avoids a corrplot error on all-zero matrices
+    lim <- max(abs(diff_network))
+    if (lim == 0) lim <- 1
+    withCallingHandlers(
+      corrplot::corrplot(diff_network,
+                        method = "color",
+                        is.corr = FALSE,
+                        col.lim = c(-lim, lim),
+                        tl.col = "black",
+                        tl.srt = 45,
+                        tl.cex = 0.8,
+                        title = main,
+                        mar = c(0, 0, 2, 0),
+                        addgrid.col = "gray",
+                        cl.pos = "r"),
+      warning = function(w) {
+        if (grepl("col.lim interval too wide", conditionMessage(w))) invokeRestart("muffleWarning")
+      })         
   } else {
     # Fallback to base R heatmap
 heatmap(diff_network, 
