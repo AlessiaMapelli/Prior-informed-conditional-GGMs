@@ -1282,7 +1282,7 @@ GGReg_cov_single_node_processing <- function(
       Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
 
       No_sim_Delta_hat_row <- rep(0, ncol(interM))
-      No_sim_Delta_hat_row[indexes_to_select] <- -sigma * as.vector(prec_reg_coeff)
+      No_sim_Delta_hat_row[indexes_to_select] <- -1/sigma * as.vector(prec_reg_coeff)
 
       if(verbose){
       cat("Node", i, "estimation complete:\n")
