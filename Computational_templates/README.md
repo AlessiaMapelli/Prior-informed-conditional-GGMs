@@ -2,6 +2,8 @@
 
 **Associated publication:** *Prior-Informed Conditional Gaussian Graphical Models for Personalized Protein Interaction Network Reconstruction* 
 
+> **The method is now available as the R package [`prCGGM`](https://CRAN.R-project.org/package=prCGGM), which is the recommended way to use it** (`install.packages("prCGGM")`; see `prCGGM_example.R` for the example below run with the package). In the package, `GGReg_full_estimation()` becomes `prcggm()` and `predict_personalized_network()` becomes `predict()`. On the example data, both implementations give the same networks. This folder documents the standalone code associated with the paper.
+
 ---
 
 ## Overview
@@ -34,6 +36,7 @@ Hyperparameters (the sparsity-group balance `Î±` and the prior weight scaling `Ï
 | `ggReg_main_functions.R` | Core estimation and utility functions |
 | `ggReg_node_job.R` | Single-node estimation script for SLURM array jobs |
 | `slurm_ggReg_node.sbatch` | SLURM batch script template for HPC execution |
+| `prCGGM_example.R` | The same example run with the `prCGGM` R package |
 
 ---
 

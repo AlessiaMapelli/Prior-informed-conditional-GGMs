@@ -24,6 +24,22 @@ Given any new individual's covariates, their personalized precision matrix is re
 
 ---
 
+## Installation
+
+The method is implemented in the R package [`prCGGM`](https://CRAN.R-project.org/package=prCGGM), the recommended way to use it on new data:
+
+```r
+install.packages("prCGGM")
+library(prCGGM)
+vignette("prCGGM")
+```
+
+In the package, the entry point `GGReg_full_estimation()` becomes `prcggm()`, and personalized networks are obtained with `predict()`. `Computational_templates/prCGGM_example.R` runs the template example with the package.
+
+The `Simulation_analysis/` and `T2D_application_code/` folders use the copies of `ggReg_main_functions.R` that produced the results reported in the paper, so they can be reproduced exactly. On the example data, the package and these scripts give the same networks.
+
+---
+
 ## Repository Structure
 
 ```
@@ -40,6 +56,7 @@ Given any new individual's covariates, their personalized precision matrix is re
 The self-contained implementation of the ggReg pipeline and the recommended starting point for new users. It contains:
 
 - **`ggReg_main_functions.R`** — all core estimation, hyperparameter tuning, symmetrization, personalized network prediction, and visualization functions, accessible through the single entry point `GGReg_full_estimation()`.
+- **`prCGGM_example.R`** — the same example run with the `prCGGM` R package.
 - **`ggReg_node_job.R`** and **`slurm_ggReg_node.sbatch`** — scripts for parallelizing node-wise estimation on HPC clusters via SLURM array jobs.
 - **Example data** (`Example_data.RData`, `expression_data.csv`, `covariate_data.csv`, `ppi_weight_matrix.txt`) — a small simulated dataset (1000 subjects, 10 proteins, 1 binary covariate, perfect prior) to test and demonstrate the pipeline locally before scaling up.
 
