@@ -1519,12 +1519,6 @@ plot_personalized_network <- function(
       labels <- paste0("Node_", 1:nrow(network))
     }
   }
-
-  if (is.null(labels)) {
-    labels <- rownames(network)
-    if (is.null(labels)) labels <- colnames(network)
-    if (is.null(labels)) labels <- paste0("Node_", seq_len(nrow(network)))
-  }
   
   # Apply threshold if specified
   if (threshold > 0) {
@@ -1535,10 +1529,10 @@ plot_personalized_network <- function(
   }
   
   # Apply labels
-  dimnames(network) <- list(labels, labels)
+  dimnames(network_plot) <- list(labels, labels)
   # Use heatmap or similar visualization
   if (requireNamespace("corrplot", quietly = TRUE)) {
-    corrplot::corrplot(network, method = "color", 
+    corrplot::corrplot(network_plot, method = "color", 
                       is.corr = FALSE, 
                       tl.col = "black",
                       tl.srt = 45,
@@ -1548,7 +1542,7 @@ plot_personalized_network <- function(
                       cl.pos = "r")
   } else {
     # Fallback to base R heatmap
-    heatmap(network, main = main, 
+    heatmap(network_plot, main = main, 
             Rowv = NA, Colv = NA, 
             scale = "none",
             labRow = labels,
