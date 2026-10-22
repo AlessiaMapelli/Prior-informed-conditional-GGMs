@@ -911,13 +911,13 @@ GGReg_cov_single_node_processing <- function(
     q <- 0
   } else {
     numeric_columns <- sapply(covariates, is.numeric)
-    covariates[, numeric_columns] <- scale(covariates[, numeric_columns])
     for (col in colnames(covariates)[numeric_columns]) {
-        scaling_params[[col]] <- list(
-          mean = mean(covariates[[col]], na.rm = TRUE),
-          sd = sd(covariates[[col]], na.rm = TRUE)
-        )
+      scaling_params[[col]] <- list(
+        mean = mean(covariates[[col]], na.rm = TRUE),
+        sd = sd(covariates[[col]], na.rm = TRUE)
+      )
     }
+    covariates[, numeric_columns] <- scale(covariates[, numeric_columns])
     C <- model.matrix(~ ., covariates)
     cn <- colnames(C)
   
