@@ -8,6 +8,7 @@ Simulation_analysis/logs/
 Simulation_analysis/.Rhistory
 Simulation_analysis/test/
 Simulation_analysis/Sim_pipeline_run_full.R
+Add_simulation_analysis/
 .DS_Store
 Computational_templates/results/
 Computational_templates/CodeTest.R
