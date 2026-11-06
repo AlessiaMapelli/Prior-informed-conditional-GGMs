@@ -4,7 +4,7 @@ This file tracks every change made to the repository since the last commit on `m
 
 - **Reference commit:** `fbc43aa` ("Addition to gitignore").
 - **Matching package release:** the code corresponds to the CRAN submission of `prCGGM` 0.1.0.
-- **Status:** committed on branch `dev` (2026-11-06; not pushed). The matching package changes are on the package branch `dev-selection-rules` (see `Rpackages/prCGGM/update_in_dev_version.md`).
+- **Status:** committed and pushed on branch `dev` (2026-11-06). The matching package changes are on the package branch `v.0.2` (see `Rpackages/prCGGM/update_in_dev_version.md`).
 - **Detail:** the READMEs referenced below hold the full findings, tables and run logs.
 
 Last updated: 2026-11-06.
