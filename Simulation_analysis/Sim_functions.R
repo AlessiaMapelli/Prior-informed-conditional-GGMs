@@ -1930,6 +1930,7 @@ generate_input_datasets_simulation <- function(
       covariates = covariates_df
       scr = method_params$screening_procedure
       gamma = NULL
+      scr_matrix = NULL
       mean_estimation = mean_estimation
       lambda_mean = NULL
       lambda_mean_type = "1se"
@@ -1963,7 +1964,7 @@ generate_input_datasets_simulation <- function(
       p <- ncol(Z0)
 
       input_data_path <- paste0(ggReg_output_path_rep, "input_data_nodes.rda")
-      save(Z0, known_ppi, covariates, scr, gamma, lambda_prec, lambda_prec_type, 
+      save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
           tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
           file = input_data_path)
 

@@ -25,7 +25,18 @@ The estimation follows a three-step procedure:
 - **Step 2 – Precision matrix estimation**: node-wise penalized regressions on `Z` estimate how network edges vary with covariates. The penalty incorporates prior knowledge through a weighted Lasso: edges with strong prior support (high `W_ij`) receive reduced penalization. A sparse-group Lasso structure separates population-level edge effects from covariate-modulated effects.
 - **Step 3 – Personalized network prediction**: given a new individual's covariate vector, their personalized precision matrix is reconstructed by linearly combining the estimated population-level and covariate-specific network components.
 
-Hyperparameters (the sparsity-group balance `α` and the prior weight scaling `ϑ`) are tuned via BIC over a grid or random search. Model selection for `λ` uses cross-validation via `glmnet` and `sparsegl`.
+For each node, the penalty `λ` and the hyperparameters (the sparsity-group balance `α` and the covariate penalty scaling `ϑ`) are selected by the rule in `selection`:
+
+| `selection` | `λ` | `α`, `ϑ` | Cost |
+|---|---|---|---|
+| `"ebic_relaxed"` (default) | minimum extended BIC (γ = 0.5) along the `λ` path, computed on the RSS of the OLS refit of each support | jointly with `λ` | `λ` paths + one Gram matrix per node |
+| `"bic_relaxed"` | as above with the BIC | jointly with `λ` | as above |
+| `"bic"` / `"ebic"` | minimum BIC / extended BIC on the RSS of the penalised fit (over-select as n grows; kept for comparison) | jointly with `λ` | `λ` paths only |
+| `"cv_min"` / `"cv_1se"` | K-fold cross-validation, `lambda.min` / `lambda.1se` | BIC at the selected `λ` | paths + CV |
+| `"stability_bic"` | stability selection (50 half-subsamples, selection probability ≥ 0.75, ≤ 1 expected false selection per node) | those of `"bic_relaxed"` | paths + 50 subsample paths |
+| `"stability_cv"` | as above | those of `"cv_min"` | paths + CV + 50 subsample paths |
+
+With `refit = TRUE` (default) the selected predictors of each node are refitted by OLS, which removes the shrinkage of the edge weights; the selected edges are unchanged. The default (`"ebic_relaxed"` with refit) and the alternatives were compared in simulation studies (see `Add_simulation_analysis/` and `Simulation_analysis_v2/selection_test/`): cross-validation with `lambda.min`, the rule of the first version of this template, and BIC on the penalised RSS both select increasingly dense networks as the sample size grows; the relaxed criteria do not, and `"ebic_relaxed"` was as accurate as stability selection at about one fifth of its cost.
 
 ---
 
@@ -104,7 +115,7 @@ The function automatically selects the computation strategy based on the number 
 - **`additional_info`**: diagnostic and intermediate outputs. Of note:
   - `Dic_Delta_hat`: symmetrized precision matrices per covariate effect
   - `Sigma_hat`: estimated node-wise residual variances
-  - `optimal_params`: best `(α, ϑ)` and BIC per node
+  - `optimal_params`: per node, the selected `λ`, `(α, ϑ)`, the BIC of the reported model, the number of selected predictors, the selection rule and whether the coefficients were refitted
   - `scaling_params`: scale parameters for the continuos varaibles
   - `dummy_params`: dummy coding for the categorical variables
 
@@ -184,9 +195,14 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 | `gamma` | `NULL` | Correlation screening threshold; `NULL` uses the 20th percentile. Ignored if `scr_matrix` is provided |
 | `scr_matrix` | `NULL` | Custom screening matrix `{0,1}`; entry `(j,k)=0` excludes feature `k` from node `j`'s regression. Overrides correlation-based screening when provided. Prior-supported edges (`known_ppi > 0`) are never screened out regardless |
 | `tune_hyperparams` | `TRUE` | Tune `α` and `ϑ` via BIC. If `FALSE` take `asparse_grid[1]` and `weight_grid[1]` as parameters|
-| `asparse_grid` | `c(0.75, 0.5, 0.9, 0.95)` | Grid for the group/element sparsity balance `α` |
-| `weight_grid` | `c(1.0, 0.8, 1.1, 1.3, 1.5)` | Grid for the prior weight scaling `ϑ` |
+| `asparse_grid` | `c(0.75, 0.5, 0.9, 0.99)` | Grid for the group/element sparsity balance `α` |
+| `weight_grid` | `c(1.0, 0.8, 1.1, 1.3)` | Grid for the covariate penalty scaling `ϑ` |
 | `random_hyper_search` | `FALSE` | Use random search instead of full grid for hyperparameter tuning |
+| `selection` | `"ebic_relaxed"` | Rule selecting `λ` (and `α`, `ϑ`): `"ebic_relaxed"`, `"bic_relaxed"`, `"bic"`, `"ebic"`, `"cv_min"`, `"cv_1se"`, `"stability_bic"`, `"stability_cv"` (see Method Summary) |
+| `refit` | `TRUE` | OLS refit of the selected predictors (always `TRUE` for stability selection) |
+| `selection_control` | `list()` | Settings of the rules: `ebic_gamma` (0.5), `stab_B` (50), `stab_fraction` (0.5), `stab_pi` (0.75), `stab_pfer` (1) |
+| `K` | `5` | Folds of the cross-validation rules |
+| `lambda_prec` | `NULL` | Fixed `λ` for all nodes (the hyperparameters are then chosen by BIC) |
 | `symm_method` | `"OR"` | Symmetrization rule: `"OR"` (less conservative) or `"AND"` |
 | `use_slurm` | `FALSE` | Use SLURM for HPC parallelization |
 

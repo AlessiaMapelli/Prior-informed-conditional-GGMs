@@ -204,7 +204,7 @@ def pair_enrichment(protein_set, results_path, exp_name, enrich_genesets_dbs = '
     return result_df
 
 base_output_dir = "./results/Network_description/"
-outcome_of_interest = 'DiabIncident'    
+outcome_of_interest = 'Diab_Incident'    
 df = pd.read_table(f'{base_output_dir}{outcome_of_interest}/Summary_node_topology_{outcome_of_interest}.csv', sep=",")
 
 protein_set=df.groupby('cfg_community')['Node'].apply(list).tolist()

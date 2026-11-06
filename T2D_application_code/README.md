@@ -39,7 +39,7 @@ Results are saved to `./results/PPI_T2D_app.RData`, together with the three coho
 
 ## Step 2 — Network Description: `Network_description_case_study_T2D_UKB.Rmd`
 
-A parameterized R Markdown report that performs all downstream network analysis. It is rendered for the T2D incidence outcome (`DiabIncident`) and writes all outputs to `./results/Network_description/DiabIncident/`. The report covers the following sections:
+A parameterized R Markdown report that performs all downstream network analysis. It is rendered for the T2D incidence outcome (`Diab_Incident`) and writes all outputs to `./results/Network_description/Diab_Incident/`. The report covers the following sections:
 
 1. **Mean effects analysis.** Extracts proteins with a non-zero T2D mean effect from the estimated coefficient matrix and reports their R-squared values across covariates.
 
@@ -49,7 +49,7 @@ A parameterized R Markdown report that performs all downstream network analysis.
 
 4. **Node centrality analysis.** Computes degree, eigenvector centrality, PageRank, betweenness, and hub score for each node. Scores are normalized and averaged into a composite centrality measure. The top-10% nodes by both average centrality and hub score are identified; their intersection defines the set of *top influential nodes*, which are visualized as a labelled subgraph. The most important interactions (edges in the top 1% by weight within this subgraph) are also extracted.
 
-5. **Node topology export.** The full per-node summary table (community membership, all centrality measures, important interactions) is saved as `Summary_node_topology_DiabIncident.csv`. This file is the direct input for Step 3.
+5. **Node topology export.** The full per-node summary table (community membership, all centrality measures, important interactions) is saved as `Summary_node_topology_Diab_Incident.csv`. This file is the direct input for Step 3.
 
 6. **Differential expression analysis.** For each protein, a Wilcoxon rank-sum test compares expression between T2D groups. P-values are adjusted with the Benjamini–Hochberg procedure and results are displayed as a volcano plot.
 
@@ -61,7 +61,7 @@ A parameterized R Markdown report that performs all downstream network analysis.
 
 A Python script that performs functional enrichment analysis on the protein communities identified in Step 2 and produces a summary heatmap.
 
-**Input.** Reads `Summary_node_topology_DiabIncident.csv` (produced by Step 2) and groups proteins by their community assignment.
+**Input.** Reads `Summary_node_topology_Diab_Incident.csv` (produced by Step 2) and groups proteins by their community assignment.
 
 **Enrichment.** Runs over-representation analysis via `gseapy.enrichr` against three databases:
 - KEGG 2021 Human

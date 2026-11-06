@@ -17,7 +17,7 @@ output:
     fig_height: 8
 params:
   net_res_path: "./results/PPI_T2D_app.RData"
-  outcome_of_interest: "DiabIncident"
+  outcome_of_interest: "Diab_Incident"  # covariate name "_" level, as created by GGReg_full_estimation()
   logistic_outcome: "Diab"
   base_output_dir: "./results/Network_description"
   color_plots_1: "#4361ee"

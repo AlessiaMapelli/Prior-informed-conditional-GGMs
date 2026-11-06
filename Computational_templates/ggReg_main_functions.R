@@ -21,20 +21,23 @@ library(foreach)
 #' @param mean_estimation Logical indicating whether to perform mean estimation, can be set to false if the input data have a null mean  - Logical; (default TRUE)
 #' @param lambda_mean Penalization term in Lasso for mean estimation (if mean_estimation = TRUE) - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_mean_type Type of lambda selection for mean estimation when using cross-validation for optimizing (if mean_estimation = TRUE) - Character; "1se" or "min" (default "1se")
-#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
-#' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
+#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
+#' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
-#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.5, 0.75, 0.9, 0.95)
-#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.8, 1.0, 1.1, 1.3, 1.5)
+#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.75, 0.5, 0.9, 0.99) (the first value is used if tune_hyperparams = FALSE)
+#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(1.0, 0.8, 1.1, 1.3) (the first value is used if tune_hyperparams = FALSE)
 #' @param random_hyper_search Logical indicating whether to perform random hyperparameter search instead of grid search for tuning (if tune_hyperparams = TRUE) - Logical; default FALSE
 #' @param p.rand.hyper Proportion of random hyperparameter combinations to try if random_hyper_search = TRUE (if tune_hyperparams = TRUE) - Numeric; default NULL setting which means 50% of the combinations will be tried
-#' @param K Number of folds for cross-validation when computing BIC for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric; default 5
+#' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param use_slurm Logical indicating whether to use HPC (specifically SLURM) for parallelization of precision estimation - Logical; If FALSE computation is going to be done in parallel via foreach is the nodes number is grater then 150 otherwise sequentially (default TRUE)
 #' @param slurm_script_path Path to the SLURM script to be used for parallelization (if use_slurm = TRUE) - Character; default "./slurm_ggReg_node.sbatch"
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
 #' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
+#' @param lambda_prec_type Deprecated, use 'selection'. "min" or "1se" are mapped to selection = "cv_min" or "cv_1se" (default NULL)
 #'
 #' @return A list containing:
 #'   \item{results}{A list with elements:}
@@ -50,7 +53,7 @@ library(foreach)
 #'       \item{Sigma_hat}{Aggregated vector of estimated variances for each node.}
 #'       \item{Dic_Delta_hat}{Dictionary of symmetrized precision matrices estimation for each node.}
 #'       \item{Dic_adj_matrics}{Dictionary of symmetrized weighted adjacency matrices estimation for each node reporting partial correlation between nodes.}
-#'       \item{optimal_params}{Data frame of optimal hyperparameters (asparse, weight) and BIC score for each node.}
+#'       \item{optimal_params}{Data frame with, for each node, the selected lambda and hyperparameters (asparse, weight), the BIC of the reported model, the number of selected predictors, the selection rule and whether the coefficients were refitted.}
 #'       \item{computational_time_per_node}{Vector of computational time taken for estimation of each node.}
 #'       \item{total_computational_time}{Total computational time taken for the entire estimation process.}
 #'       \item{scaling_params}{List of scaling parameters (means and SDs) used for numerical covariates.}
@@ -102,10 +105,12 @@ GGReg_full_estimation <- function(
   lambda_mean = NULL,
   lambda_mean_type = "min",
   lambda_prec = NULL,
-  lambda_prec_type = "min",
+  selection = "ebic_relaxed",
+  refit = TRUE,
+  selection_control = list(),
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
-  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.99),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -114,8 +119,14 @@ GGReg_full_estimation <- function(
   output_path = "./results/",
   name_output = "ggReg_result",
   symm_method ="OR",
-  verbose = FALSE) 
+  verbose = FALSE,
+  lambda_prec_type = NULL) 
 {
+  if (!is.null(lambda_prec_type)) {
+    # Deprecated: earlier versions selected lambda by cross-validation only
+    warning("'lambda_prec_type' is deprecated; use selection = \"cv_min\" or \"cv_1se\".")
+    selection <- paste0("cv_", lambda_prec_type)
+  }
   if (verbose) {
     cat("=== Starting GGReg Full Estimation ===\n")
   }
@@ -156,7 +167,9 @@ GGReg_full_estimation <- function(
       gamma = gamma,
       scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
-      lambda_prec_type = lambda_prec_type,
+      selection = selection,
+      refit = refit,
+      selection_control = selection_control,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -182,7 +195,9 @@ GGReg_full_estimation <- function(
       gamma = gamma,
       scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
-      lambda_prec_type = lambda_prec_type,
+      selection = selection,
+      refit = refit,
+      selection_control = selection_control,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -205,7 +220,9 @@ GGReg_full_estimation <- function(
       gamma = gamma,
       scr_matrix = scr_matrix,
       lambda_prec = lambda_prec,
-      lambda_prec_type = lambda_prec_type,
+      selection = selection,
+      refit = refit,
+      selection_control = selection_control,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -524,14 +541,16 @@ GGReg_mean_estimation <- function(
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
-#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
-#' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
+#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
+#' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
-#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.5, 0.75, 0.9, 0.95)
-#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.8, 1.0, 1.1, 1.3, 1.5)
+#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.75, 0.5, 0.9, 0.99) (the first value is used if tune_hyperparams = FALSE)
+#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(1.0, 0.8, 1.1, 1.3) (the first value is used if tune_hyperparams = FALSE)
 #' @param random_hyper_search Logical indicating whether to perform random hyperparameter search instead of grid search for tuning (if tune_hyperparams = TRUE) - Logical; default FALSE
 #' @param p.rand.hyper Proportion of random hyperparameter combinations to try if random_hyper_search = TRUE (if tune_hyperparams = TRUE) - Numeric; default NULL setting which means 50% of the combinations will be tried
-#' @param K Number of folds for cross-validation when computing BIC for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric; default 5
+#' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param slurm_script_path Path to the SLURM script to be used for parallelization (if use_slurm = TRUE) - Character; default "./slurm_ggReg_node.sbatch"
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
@@ -555,10 +574,12 @@ GGReg_cov_estimation_SLURM <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  lambda_prec_type = "min",
+  selection = "ebic_relaxed",
+  refit = TRUE,
+  selection_control = list(),
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
-  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.99),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -582,7 +603,7 @@ GGReg_cov_estimation_SLURM <- function(
   }
   # Save all input data for each SLURM jobs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   if (verbose) {
@@ -634,14 +655,16 @@ GGReg_cov_estimation_SLURM <- function(
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
-#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
-#' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
+#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
+#' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
-#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.5, 0.75, 0.9, 0.95)
-#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.8, 1.0, 1.1, 1.3, 1.5)
+#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.75, 0.5, 0.9, 0.99) (the first value is used if tune_hyperparams = FALSE)
+#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(1.0, 0.8, 1.1, 1.3) (the first value is used if tune_hyperparams = FALSE)
 #' @param random_hyper_search Logical indicating whether to perform random hyperparameter search instead of grid search for tuning (if tune_hyperparams = TRUE) - Logical; default FALSE
 #' @param p.rand.hyper Proportion of random hyperparameter combinations to try if random_hyper_search = TRUE (if tune_hyperparams = TRUE) - Numeric; default NULL setting which means 50% of the combinations will be tried
-#' @param K Number of folds for cross-validation when computing BIC for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric; default 5
+#' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
 #' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
@@ -665,10 +688,12 @@ GGReg_cov_estimation_sequential <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  lambda_prec_type = "min",
+  selection = "ebic_relaxed",
+  refit = TRUE,
+  selection_control = list(),
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
-  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.99),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -692,7 +717,7 @@ GGReg_cov_estimation_sequential <- function(
   
   # Save all input data for individual node runs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K, 
        file = input_data_path)
   
@@ -739,14 +764,16 @@ GGReg_cov_estimation_sequential <- function(
 #' @param scr Logical indicating whether to perform screening based on correlation to speed up estimation - Logical; default TRUE
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
-#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
-#' @param lambda_prec_type Type of lambda selection for precision estimation when using cross-validation for optimizing - Character; "1se" or "min" (default "1se")
+#' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
+#' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
-#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.5, 0.75, 0.9, 0.95)
-#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.8, 1.0, 1.1, 1.3, 1.5)
+#' @param asparse_grid Grid of alpha values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(0.75, 0.5, 0.9, 0.99) (the first value is used if tune_hyperparams = FALSE)
+#' @param weight_grid Grid of weight values to consider for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric vector; default c(1.0, 0.8, 1.1, 1.3) (the first value is used if tune_hyperparams = FALSE)
 #' @param random_hyper_search Logical indicating whether to perform random hyperparameter search instead of grid search for tuning (if tune_hyperparams = TRUE) - Logical; default FALSE
 #' @param p.rand.hyper Proportion of random hyperparameter combinations to try if random_hyper_search = TRUE (if tune_hyperparams = TRUE) - Numeric; default NULL setting which means 50% of the combinations will be tried
-#' @param K Number of folds for cross-validation when computing BIC for hyperparameter tuning (if tune_hyperparams = TRUE) - Numeric; default 5
+#' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
 #' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
@@ -769,10 +796,12 @@ GGReg_cov_estimation_parallel <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  lambda_prec_type = "min",
+  selection = "ebic_relaxed",
+  refit = TRUE,
+  selection_control = list(),
   tune_hyperparams = TRUE,
-  asparse_grid = c(0.75, 0.5, 0.9, 0.95),
-  weight_grid = c(1.0, 0.8, 1.1, 1.3, 1.5),
+  asparse_grid = c(0.75, 0.5, 0.9, 0.99),
+  weight_grid = c(1.0, 0.8, 1.1, 1.3),
   random_hyper_search = FALSE,
   p.rand.hyper = NULL,
   K = 5,
@@ -799,7 +828,7 @@ GGReg_cov_estimation_parallel <- function(
   
   # Save all input data for individual node runs
   input_data_path <<- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   
@@ -853,7 +882,7 @@ GGReg_cov_estimation_parallel <- function(
 #'
 #' Individual node estimation function for the neighboorhood selection in the GGReg model with optional hyperparameter tuning, designed to be called for each node in parallel (e.g., via SLURM or foreach) or sequentially.
 #'
-#' @param input_data_path Path to the input data file containing Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K (saved as an RDA file) - Character
+#' @param input_data_path Path to the input data file containing Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control, tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K (saved as an RDA file) - Character
 #' @param node_index Index of the node to be processed - Numeric (1-based index from 1 to p)
 #' @param output_path Directory where the output for the node will be saved - Character
 #' @param name_output Base name for the output file for the node - Character
@@ -886,8 +915,16 @@ GGReg_cov_single_node_processing <- function(
   #################################################
   if(verbose){cat("Loading input data...\n")}
   load(input_data_path)
-  # This loads: Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, lambda_prec_type, 
-  #             tune_hyperparams, asparse_grid, weight_grid, K
+  # This loads: Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
+  #             tune_hyperparams, asparse_grid, weight_grid, random_hyper_search,
+  #             p.rand.hyper, K
+  # Input files written by earlier versions of the template have no selection
+  # settings: they selected lambda by cross-validation, without refit
+  if (!exists("selection", inherits = FALSE)) {
+    selection <- if (exists("lambda_prec_type", inherits = FALSE)) paste0("cv_", lambda_prec_type) else "cv_min"
+  }
+  if (!exists("refit", inherits = FALSE)) refit <- FALSE
+  if (!exists("selection_control", inherits = FALSE)) selection_control <- list()
   n <- nrow(Z0)
   p <- ncol(Z0)
   i <- node_index  # Current node index
@@ -1041,275 +1078,89 @@ GGReg_cov_single_node_processing <- function(
 
   if(verbose){cat("Selected", ncol(Xmat), "features for node", i, "\n")}
 
-  if(is.null(covariates)){
-    if (is.null(known_ppi)) {
-      if(verbose){cat("No covariates and no prior knowledge. Running standard Lasso regression...\n")}
-      set.seed(2024)
-      if (is.null(lambda_prec)) {
-        mod <- cv.glmnet(x = as.matrix(Xmat), y = Y, alpha = 1, family = c("gaussian"))
-      } else{
-        lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
-        mod <- cv.glmnet(x = as.matrix(Xmat), y = Y,lambda = lambda_seq, alpha = 1, family = c("gaussian"))
+  #################################################
+  ## Penalised regression and model selection
+  #################################################
+  # Baseline predictors (group 1) are penalised by 1 - prior weight; covariate
+  # predictors by the weight hyperparameter (theta). Without covariates the
+  # model is a (prior-weighted) lasso: one group per predictor, asparse = 1.
+  Xmat <- as.matrix(Xmat)
+  pf_baseline <- penaltyfactor[i, indexes_to_select_penalty]
+  if (is.null(covariates)) {
+    Xgroup_fit <- seq_len(ncol(Xmat))
+    w_group_fit <- rep(1, ncol(Xmat))
+    combos <- data.frame(asparse = 1, weight = 1)
+  } else {
+    Xgroup_fit <- Xgroup
+    w_group_fit <- w_group
+    if (tune_hyperparams) {
+      combos <- expand.grid(asparse = asparse_grid, weight = weight_grid)
+      if (random_hyper_search && nrow(combos) > 1) {
+        if (is.null(p.rand.hyper)) p.rand.hyper <- 0.5
+        set.seed(234 + 10 * i)
+        combos <- combos[sample(seq_len(nrow(combos)),
+                                size = max(1, floor(p.rand.hyper * nrow(combos)))), , drop = FALSE]
       }
-    }else{
-      if(verbose){cat("No covariates. Running Lasso regression weighted with prior knowledge...\n")}
-      w_sparsity <- rep(1, ncol(Xmat))
-      temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
-      w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
-      set.seed(2024)
-      if (is.null(lambda_prec)) {
-        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, pf_sparse = w_sparsity, 
-                          asparse = 1, intercept = FALSE, nfolds = K)
-      } else {
-        lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
-        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, pf_sparse = w_sparsity, 
-                          asparse = 1, lambda = lambda_seq, 
-                          intercept = FALSE, nfolds = K)
-      }
-    }
-
-    if (lambda_prec_type == "min") {
-      prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
-      best_lambda_prec <- mod$lambda.min
     } else {
-      prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
-      best_lambda_prec <- mod$lambda.1se
-    }
-
-    # Compute BIC for this model
-    res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
-    df_j <- sum(prec_reg_coeff != 0)
-    sigma <- sum(res.model^2) / (n - df_j)
-
-    # BIC = n * log(RSS/n) + log(n) * df
-    bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
-
-    best_params <- list(best_lambda_prec = best_lambda_prec, asparse = 1, weight = 1, bic_score = bic_score)
-
-    Prec_reg_matrix_row <- rep(0, ncol(interM))
-    Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
-
-    No_sim_Delta_hat_row <- rep(0, ncol(interM))
-    No_sim_Delta_hat_row[indexes_to_select] <- -1/sigma * as.vector(prec_reg_coeff)
-
-    if(verbose){
-      cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
-      cat("  Residual variance:", sigma, "\n")}
-
-    node_result <- list(
-      node_index = i,
-      Prec_reg_matrix_row = Prec_reg_matrix_row,
-      No_sim_Delta_hat_row = No_sim_Delta_hat_row,
-      sigma = sigma,
-      optimal_params = best_params,
-      computation_time = Sys.time() - time.start,
-      # Save metadata for result collection
-      col_names = colnames(interM),
-      row_names = colnames(Z0),
-      groups = groups,
-      U_names = U_names,
-      scaling_params = scaling_params,
-      dummy_params = dummy_params
-    )
-
-    if(verbose){cat("Saving results for node", i, "...\n")}
-
-    output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
-    save(node_result, file = output_file)
-
-  }else{
-    if(verbose){cat("Running group spare Lasso regression with covariates...\n") }
-    if (tune_hyperparams && !(length(asparse_grid) == 1 && length(weight_grid) == 1)) {
-      if(verbose){
-      cat("Starting hyperparameter tuning...\n")
-      cat("Grid: asparse =", length(asparse_grid), "values, weight =", length(weight_grid), "values\n")}
-      
-      best_bic <- Inf
-      best_params <- NULL
-      best_result <- NULL
-
-      param_combinations <- expand.grid(asparse = asparse_grid, weight = weight_grid)
-
-      if(random_hyper_search){
-        if(is.null(p.rand.hyper)){
-          p.rand.hyper <- 0.5
-        }
-        set.seed(234+10*i)
-        param_combinations <- param_combinations[sample(1:nrow(param_combinations), size = floor(p.rand.hyper * nrow(param_combinations))), ]
-      }
-      for (idx in 1:nrow(param_combinations)) {
-        asparse_val <- param_combinations$asparse[idx]
-        weight_val <- param_combinations$weight[idx]
-        
-        if (idx %% 5 == 1 && verbose) {
-          cat("Testing asparse =", asparse_val, ", weight =", weight_val, 
-              "(", idx, "of", nrow(param_combinations), ")\n")
-        }
-      
-        # Setup penalty weights
-        w_sparsity <- rep(weight_val, ncol(Xmat))
-        temp_w_sparsity_g1 <- penaltyfactor[i, indexes_to_select_penalty]
-        #temp_w_sparsity_g1[!one[i,indexes_to_select_penalty]] <- weight_val
-        w_sparsity[Xgroup == 1] <- temp_w_sparsity_g1
-        #w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
-        set.seed(2024)
-        if (is.null(lambda_prec)) {
-          mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
-                            pf_group = w_group, pf_sparse = w_sparsity, 
-                            asparse = asparse_val, intercept = FALSE, nfolds = K)
-        } else {
-          lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
-          mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
-                            pf_group = w_group, pf_sparse = w_sparsity, 
-                            asparse = asparse_val, lambda = lambda_seq, 
-                            intercept = FALSE, nfolds = K)
-        }
-        if (lambda_prec_type == "min") {
-          prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
-          best_lambda_prec <- mod$lambda.min
-        } else {
-          prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
-          best_lambda_prec <- mod$lambda.1se
-        }
-        # Compute BIC for this parameter combination
-        res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
-        df_j <- sum(prec_reg_coeff != 0)
-        sigma <- sum(res.model^2) / (n - df_j)
-      
-        # BIC = n * log(RSS/n) + log(n) * df
-        bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
-      
-        if (bic_score < best_bic) {
-          best_bic <- bic_score
-          best_params <- list(best_lambda_prec = best_lambda_prec, asparse = asparse_val, weight = weight_val, bic_score = bic_score)
-          best_result <- list(prec_reg_coeff = prec_reg_coeff, sigma = sigma, mod = mod)
-
-          if(verbose){
-
-          cat("Current optimal parameters for node", i, ":\n")
-          cat("  asparse =", best_params$asparse, "\n")
-          cat("  weight =", best_params$weight, "\n")
-          cat("  BIC score =", best_params$bic_score, "\n")
-
-          cat("Preparing current best output for node", i, "...\n")}
-
-          # Build full coefficient vector for this node
-          Prec_reg_matrix_row <- rep(0, ncol(interM))
-          Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
-
-          No_sim_Delta_hat_row <- rep(0, ncol(interM))
-          No_sim_Delta_hat_row[indexes_to_select] <- -1/sigma * as.vector(prec_reg_coeff)
-
-          if(verbose){
-          cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
-          cat("  Residual variance:", sigma, "\n")}
-
-          node_result <- list(
-            node_index = i,
-            Prec_reg_matrix_row = Prec_reg_matrix_row,
-            No_sim_Delta_hat_row = No_sim_Delta_hat_row,
-            sigma = sigma,
-            optimal_params = best_params,
-            computation_time = Sys.time() - time.start,
-            # Save metadata for result collection
-            col_names = colnames(interM),
-            row_names = colnames(Z0),
-            groups = groups,
-            U_names = U_names,
-            scaling_params = scaling_params,
-            dummy_params = dummy_params
-          )
-
-          if(verbose){
-          cat("Saving best results so far for node", i, "...\n")}
-
-          output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
-          save(node_result, file = output_file)
-
-        }
-      
-      }
-      if (is.null(best_result)) {
-        stop("No valid hyperparameter combination found for node ", i)
-      }    
-    } else {
-      # No hyperparameter tuning - use first values from grids
-      asparse_val <- asparse_grid[1]
-      weight_val <- weight_grid[1]
-      if(verbose){
-      cat("Using fixed hyperparameters: asparse =", asparse_val, ", weight =", weight_val, "\n")}
-    
-      # Setup penalty weights
-      w_sparsity <- rep(weight_val, ncol(Xmat))
-      w_sparsity[Xgroup == 1] <- penaltyfactor[i, indexes_to_select_penalty]
-      w_group[which(w_group == 1)] <- sqrt(sum(Xgroup == 1))
-      set.seed(2024)
-      if (is.null(lambda_prec)) {
-        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
-                          pf_group = w_group, pf_sparse = w_sparsity, 
-                          asparse = asparse_val, intercept = FALSE)
-      } else {
-        lambda_seq <- c(lambda_prec-0.01*lambda_prec, lambda_prec, lambda_prec+ 0.01*lambda_prec)
-        mod <- cv.sparsegl(x = as.matrix(Xmat), y = Y, group = Xgroup, 
-                          pf_group = w_group, pf_sparse = w_sparsity, 
-                          asparse = asparse_val, lambda = lambda_seq, 
-                          intercept = FALSE)
-      }
-      if (lambda_prec_type == "min") {
-        prec_reg_coeff <- coef(mod, s = "lambda.min")[, 1]
-        best_lambda_prec <- mod$lambda.min
-      } else {
-        prec_reg_coeff <- coef(mod, s = "lambda.1se")[, 1]
-        best_lambda_prec <- mod$lambda.1se
-      }
-
-      # Compute residuals and variance
-      res.model <- Y - cbind(1, as.matrix(Xmat)) %*% prec_reg_coeff
-      df_j <- sum(prec_reg_coeff != 0)
-      sigma <- sum(res.model^2) / (n - df_j)
-    
-      # BIC for record keeping
-      bic_score <- n * log(sum(res.model^2) / n) + log(n) * df_j
-    
-      optimal_params <- list(best_lambda_prec = best_lambda_prec, asparse = asparse_val, weight = weight_val, bic_score = bic_score)
-
-      if(verbose){cat("Preparing output for node", i, "...\n")}
-
-      # Build full coefficient vector for this node
-      Prec_reg_matrix_row <- rep(0, ncol(interM))
-      Prec_reg_matrix_row[indexes_to_select] <- as.vector(prec_reg_coeff)
-
-      No_sim_Delta_hat_row <- rep(0, ncol(interM))
-      No_sim_Delta_hat_row[indexes_to_select] <- -1/sigma * as.vector(prec_reg_coeff)
-
-      if(verbose){
-      cat("Node", i, "estimation complete:\n")
-      cat("  Non-zero coefficients:", sum(abs(prec_reg_coeff) > 0), "\n")
-      cat("  Residual variance:", sigma, "\n")
-      }
-
-      if(verbose){cat("Saving results for node", i, "...\n")}
-
-      node_result <- list(
-        node_index = i,
-        Prec_reg_matrix_row = Prec_reg_matrix_row,
-        No_sim_Delta_hat_row = No_sim_Delta_hat_row,
-        sigma = sigma,
-        optimal_params = optimal_params,
-        computation_time = difftime(Sys.time(), time.start, units = "mins"),
-        # Save metadata for result collection
-        col_names = colnames(interM),
-        row_names = colnames(Z0),
-        groups = groups,
-        U_names = U_names,
-        scaling_params = scaling_params,
-        dummy_params = dummy_params
-      )
-
-      output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
-      save(node_result, file = output_file)
+      # No hyperparameter tuning: first values of the grids
+      combos <- data.frame(asparse = asparse_grid[1], weight = weight_grid[1])
     }
   }
+  make_pf <- function(weight) {
+    w <- rep(weight, ncol(Xmat))
+    w[Xgroup_fit == 1 | is.null(covariates)] <- pf_baseline
+    w
+  }
+  if (verbose) {
+    cat("Selection rule:", selection, "| refit:", refit, "|",
+        nrow(combos), "hyperparameter combination(s)\n")
+  }
+  fit <- GGReg_node_model_selection(
+    X = Xmat, y = as.vector(Y), group = Xgroup_fit, pf_group = w_group_fit,
+    make_pf = make_pf, combos = combos, selection = selection,
+    lambda_prec = lambda_prec, K = K, refit = refit,
+    selection_control = selection_control, seed_stab = 5000 + i)
+
+  prec_reg_coeff <- fit$coef
+  sigma <- fit$sigma2
+  best_params <- fit$params
+
+  Prec_reg_matrix_row <- rep(0, ncol(interM))
+  Prec_reg_matrix_row[indexes_to_select_reg] <- prec_reg_coeff
+  No_sim_Delta_hat_row <- -1 / sigma * Prec_reg_matrix_row
+  Penalised_reg_matrix_row <- NULL
+  if (!is.null(fit$coef_penalised)) {
+    Penalised_reg_matrix_row <- rep(0, ncol(interM))
+    Penalised_reg_matrix_row[indexes_to_select_reg] <- fit$coef_penalised
+  }
+
+  if (verbose) {
+    cat("Optimal parameters for node", i, ": asparse =", best_params$asparse,
+        ", weight =", best_params$weight, ", lambda =", best_params$best_lambda_prec, "\n")
+    cat("  Non-zero coefficients:", sum(prec_reg_coeff != 0), "\n")
+    cat("  Residual variance:", sigma, "\n")
+  }
+
+  node_result <- list(
+    node_index = i,
+    Prec_reg_matrix_row = Prec_reg_matrix_row,
+    No_sim_Delta_hat_row = No_sim_Delta_hat_row,
+    Penalised_reg_matrix_row = Penalised_reg_matrix_row,
+    sigma = sigma,
+    optimal_params = best_params,
+    computation_time = difftime(Sys.time(), time.start, units = "mins"),
+    # Save metadata for result collection
+    col_names = colnames(interM),
+    row_names = colnames(Z0),
+    groups = groups,
+    U_names = U_names,
+    scaling_params = scaling_params,
+    dummy_params = dummy_params
+  )
+  if (verbose) {cat("Saving results for node", i, "...\n")}
+  output_file <- paste0(output_path, name_output, "_node_", i, ".rda")
+  save(node_result, file = output_file)
+
   #################################################
   ## Prepare Output for Node i
   #################################################
@@ -1317,6 +1168,183 @@ GGReg_cov_single_node_processing <- function(
   cat("Final results saved to:", output_file, "\n")
   cat("Computation time for node", i, ":", difftime(Sys.time(), time.start, units = "mins"), "\n")
   cat("=== Node", i, "Complete ===\n")
+}
+
+#' GGReg_node_model_selection
+#'
+#' Fits the penalised node-wise regression over the hyperparameter
+#' combinations and selects the model with the chosen rule, optionally
+#' followed by an OLS refit on the selected predictors.
+#'
+#' @param X Design matrix of the node (no intercept column) - matrix
+#' @param y Response (the node) - numeric vector
+#' @param group Group of each column of X - integer vector
+#' @param pf_group Penalty factor of each group - numeric vector
+#' @param make_pf Function of the weight hyperparameter returning the penalty factor of each column of X
+#' @param combos Hyperparameter combinations to evaluate - data frame with columns asparse and weight
+#' @param selection Selection rule - Character:
+#'   "ebic_relaxed" (default; lambda and hyperparameters by the minimum extended BIC over the lambda path and the combinations, computed on the RSS of the OLS refit of each support),
+#'   "bic_relaxed" (as "ebic_relaxed" with the BIC),
+#'   "bic" / "ebic" (as the relaxed rules but on the RSS of the penalised fit; the lasso shrinkage inflates this RSS by an amount growing with n, so these rules choose ever smaller lambda and over-select as n grows),
+#'   "cv_min" / "cv_1se" (lambda by K-fold cross-validation within each combination, lambda.min or lambda.1se; combination by BIC),
+#'   "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or "cv_min")
+#' @param lambda_prec Fixed lambda - Numeric; if not NULL, lambda is fixed to this value and the combination is chosen by BIC (default NULL)
+#' @param K Number of cross-validation folds - Numeric
+#' @param refit Logical; refit the selected predictors by OLS (default TRUE). Always TRUE for stability selection.
+#' @param selection_control List of settings: ebic_gamma (EBIC parameter, default 0.5), stab_B (number of subsamples, default 50), stab_fraction (subsample fraction, default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (bound on the expected number of false selections per node, default 1)
+#' @param seed_cv Seed for the fold assignment, identical for all combinations and nodes (default 2024)
+#' @param seed_stab Seed for the subsamples of stability selection
+#'
+#' @return A list with coef (reported coefficients), sigma2 (residual variance), coef_penalised (penalised coefficients, NULL for stability selection) and params (selected lambda, asparse, weight, BIC, number of selected predictors, rule)
+#'
+#' @description
+#' BIC = n log(RSS/n) + log(n) df and EBIC = BIC + 2 gamma log(choose(P, df)), with df the number of non-zero coefficients and P the number of predictors.
+#' For the relaxed rules RSS is that of the OLS refit of the support at each lambda, RSS = y'y - b'X_s'y with b = (X_s'X_s)^-1 X_s'y, computed from the Gram matrix X'X (once per node) for each distinct support on the path; for "bic" / "ebic" RSS is that of the penalised fit.
+#' Stability selection (Meinshausen & Buhlmann, 2010) refits the lambda path on stab_B random subsamples of size stab_fraction * n, restricts the path to the region where the average number of selected predictors is at most sqrt(stab_pfer * (2 stab_pi - 1) * P), and selects the predictors with selection frequency >= stab_pi in that region.
+#' With refit = TRUE the selected predictors are refitted by OLS, which removes the shrinkage of the edge weights; the residual variance is RSS / (n - df).
+GGReg_node_model_selection <- function(
+  X, y, group, pf_group, make_pf, combos,
+  selection = "ebic_relaxed",
+  lambda_prec = NULL,
+  K = 5,
+  refit = TRUE,
+  selection_control = list(),
+  seed_cv = 2024,
+  seed_stab = 5000)
+{
+  rules <- c("ebic_relaxed", "bic_relaxed", "bic", "ebic", "cv_min", "cv_1se",
+             "stability_bic", "stability_cv")
+  if (!selection %in% rules) {
+    stop("selection must be one of: ", paste(rules, collapse = ", "))
+  }
+  ctrl <- modifyList(list(ebic_gamma = 0.5, stab_B = 50, stab_fraction = 0.5,
+                          stab_pi = 0.75, stab_pfer = 1), selection_control)
+  n <- nrow(X); P <- ncol(X)
+  use_cv <- is.null(lambda_prec) && selection %in% c("cv_min", "cv_1se", "stability_cv")
+  use_relaxed <- is.null(lambda_prec) &&
+    selection %in% c("bic_relaxed", "ebic_relaxed", "stability_bic")
+  if (use_relaxed) {
+    # Relaxed RSS of a support s from the Gram matrix (QR fallback if singular)
+    XtX <- crossprod(X); Xty <- drop(crossprod(X, y)); yty <- sum(y^2)
+    relaxed_rss <- function(s) {
+      if (!any(s)) return(yty)
+      R <- tryCatch(chol(XtX[s, s, drop = FALSE]), error = function(e) NULL)
+      if (is.null(R)) return(sum(lm.fit(X[, s, drop = FALSE], y)$residuals^2))
+      b <- backsolve(R, forwardsolve(t(R), Xty[s]))
+      max(yty - sum(Xty[s] * b), 0)
+    }
+  }
+
+  # Lambda path (and cross-validation if needed) for each combination
+  fits <- vector("list", nrow(combos))
+  for (k in seq_len(nrow(combos))) {
+    args <- list(x = X, y = y, group = group, pf_group = pf_group,
+                 pf_sparse = make_pf(combos$weight[k]),
+                 asparse = combos$asparse[k], intercept = FALSE)
+    if (!is.null(lambda_prec)) {
+      args$lambda <- lambda_prec * c(1.01, 1, 0.99)
+    }
+    if (use_cv) {
+      set.seed(seed_cv)
+      cv <- do.call(cv.sparsegl, c(args, list(nfolds = K)))
+      path <- cv$sparsegl.fit
+    } else {
+      cv <- NULL
+      path <- do.call(sparsegl, args)
+    }
+    B <- as.matrix(path$beta)
+    rss <- colSums((y - X %*% B)^2)
+    df <- colSums(B != 0)
+    bic <- n * log(rss / n) + log(n) * df
+    fits[[k]] <- list(
+      args = args, lambda = path$lambda, B = B, bic = bic,
+      ebic = bic + 2 * ctrl$ebic_gamma * lchoose(P, df),
+      idx_min = if (use_cv) which(path$lambda == cv$lambda.min)[1] else NA,
+      idx_1se = if (use_cv) which(path$lambda == cv$lambda.1se)[1] else NA)
+    if (use_relaxed) {
+      S <- B != 0
+      key <- apply(S, 2, function(s) paste(which(s), collapse = ","))
+      ukey <- unique(key)
+      rss_u <- vapply(ukey, function(u) relaxed_rss(S[, match(u, key)]), numeric(1))
+      bic_rel <- n * log(unname(rss_u[match(key, ukey)]) / n) + log(n) * df
+      fits[[k]]$bic_relaxed <- bic_rel
+      fits[[k]]$ebic_relaxed <- bic_rel + 2 * ctrl$ebic_gamma * lchoose(P, df)
+    }
+  }
+
+  # Selected combination and lambda index
+  by_ic <- function(field) {
+    best <- sapply(fits, function(f) min(f[[field]]))
+    k <- unname(which.min(best))
+    c(k = k, idx = unname(which.min(fits[[k]][[field]])))
+  }
+  by_index <- function(field) {
+    bics <- sapply(fits, function(f) f$bic[f[[field]]])
+    k <- unname(which.min(bics))
+    c(k = k, idx = unname(fits[[k]][[field]]))
+  }
+  if (!is.null(lambda_prec)) {
+    for (k in seq_along(fits)) fits[[k]]$idx_fixed <- 2
+    pick <- by_index("idx_fixed")
+  } else {
+    pick <- switch(selection,
+                   bic = by_ic("bic"), ebic = by_ic("ebic"),
+                   bic_relaxed = by_ic("bic_relaxed"), ebic_relaxed = by_ic("ebic_relaxed"),
+                   cv_min = by_index("idx_min"), cv_1se = by_index("idx_1se"),
+                   stability_bic = by_ic("bic_relaxed"), stability_cv = by_index("idx_min"))
+  }
+  f <- fits[[pick["k"]]]
+  coef_pen <- f$B[, pick["idx"]]
+  support <- coef_pen != 0
+  lambda_sel <- f$lambda[pick["idx"]]
+
+  # Stability selection at the selected combination
+  if (selection %in% c("stability_bic", "stability_cv") && is.null(lambda_prec)) {
+    counts <- matrix(0, P, length(f$lambda))
+    m <- floor(ctrl$stab_fraction * n)
+    set.seed(seed_stab)
+    for (b in seq_len(ctrl$stab_B)) {
+      s <- sample.int(n, m)
+      a <- f$args
+      a$x <- X[s, , drop = FALSE]; a$y <- y[s]; a$lambda <- f$lambda
+      fb <- do.call(sparsegl, a)
+      Lb <- ncol(fb$beta)
+      counts[, seq_len(Lb)] <- counts[, seq_len(Lb)] + (as.matrix(fb$beta) != 0)
+    }
+    freq <- counts / ctrl$stab_B
+    q_lambda <- sqrt(ctrl$stab_pfer * (2 * ctrl$stab_pi - 1) * P)
+    first_over <- which(colSums(freq) > q_lambda)[1]
+    region <- if (is.na(first_over)) seq_along(f$lambda) else seq_len(first_over - 1)
+    support <- if (length(region) == 0) rep(FALSE, P) else
+      apply(freq[, region, drop = FALSE], 1, max) >= ctrl$stab_pi
+    coef_pen <- NULL
+    lambda_sel <- NA
+    refit <- TRUE
+  }
+
+  # Reported coefficients: OLS refit on the support or penalised estimates
+  if (refit) {
+    coef <- numeric(P)
+    if (any(support)) {
+      ols <- lm.fit(X[, support, drop = FALSE], y)
+      b <- ols$coefficients
+      b[is.na(b)] <- 0
+      coef[support] <- b
+    }
+  } else {
+    coef <- coef_pen
+  }
+  rss <- sum((y - X %*% coef)^2)
+  df <- sum(coef != 0)
+  sigma2 <- rss / max(n - df, 1)
+  list(coef = coef, sigma2 = sigma2, coef_penalised = coef_pen,
+       params = list(best_lambda_prec = lambda_sel,
+                     asparse = combos$asparse[pick["k"]],
+                     weight = combos$weight[pick["k"]],
+                     bic_score = n * log(rss / n) + log(n) * df,
+                     n_selected = df,
+                     selection = if (is.null(lambda_prec)) selection else "fixed_lambda",
+                     refit = refit))
 }
 
 #' collect_node_results
@@ -1362,7 +1390,8 @@ collect_node_results <- function(
   Prec_reg_matrix <- matrix(0, p, n_cols)
   Sigma_hat <- rep(1, p)
   No_sim_Delta_hat <- matrix(0, p, n_cols)
-  optimal_params <- data.frame(node = 1:p, best_lambda_prec=NA, asparse = NA, weight = NA, bic_score = NA)
+  optimal_params <- data.frame(node = 1:p, best_lambda_prec = NA, asparse = NA, weight = NA,
+                               bic_score = NA, n_selected = NA, selection = NA, refit = NA)
   computational_time <- rep(0, p)
   scaling_params <- node_result$scaling_params
   dummy_params <- node_result$dummy_params
@@ -1377,8 +1406,10 @@ collect_node_results <- function(
         No_sim_Delta_hat[i, ] <- node_result$No_sim_Delta_hat_row
         
         if (!is.null(node_result$optimal_params)) {
-          optimal_params[i, c("best_lambda_prec", "asparse", "weight", "bic_score")] <- 
-            node_result$optimal_params[c("best_lambda_prec","asparse", "weight", "bic_score")]
+          fields <- intersect(c("best_lambda_prec", "asparse", "weight", "bic_score",
+                                "n_selected", "selection", "refit"),
+                              names(node_result$optimal_params))
+          optimal_params[i, fields] <- node_result$optimal_params[fields]
         }
 
         if (!is.null(node_result$computation_time)) {
