@@ -22,7 +22,7 @@ library(foreach)
 #' @param lambda_mean Penalization term in Lasso for mean estimation (if mean_estimation = TRUE) - Numeric; If NULL, optimal lambda is selected via cross-validation (default NULL)
 #' @param lambda_mean_type Type of lambda selection for mean estimation when using cross-validation for optimizing (if mean_estimation = TRUE) - Character; "1se" or "min" (default "1se")
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
-#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "bic_relaxed" (default: minimum BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations; recommended with symm_method = "AND"), "ebic_relaxed" (as "bic_relaxed" with the extended BIC; recommended with symm_method = "OR" and small n), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
 #' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
 #' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -35,7 +35,7 @@ library(foreach)
 #' @param slurm_script_path Path to the SLURM script to be used for parallelization (if use_slurm = TRUE) - Character; default "./slurm_ggReg_node.sbatch"
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
-#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
+#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "AND" or "OR" (default "AND")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
 #' @param lambda_prec_type Deprecated, use 'selection'. "min" or "1se" are mapped to selection = "cv_min" or "cv_1se" (default NULL)
 #'
@@ -105,7 +105,7 @@ GGReg_full_estimation <- function(
   lambda_mean = NULL,
   lambda_mean_type = "min",
   lambda_prec = NULL,
-  selection = "ebic_relaxed",
+  selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
   tune_hyperparams = TRUE,
@@ -118,7 +118,7 @@ GGReg_full_estimation <- function(
   slurm_script_path = "./slurm_ggReg_node.sbatch",
   output_path = "./results/",
   name_output = "ggReg_result",
-  symm_method ="OR",
+  symm_method ="AND",
   verbose = FALSE,
   lambda_prec_type = NULL) 
 {
@@ -542,7 +542,7 @@ GGReg_mean_estimation <- function(
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
-#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "bic_relaxed" (default: minimum BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations; recommended with symm_method = "AND"), "ebic_relaxed" (as "bic_relaxed" with the extended BIC; recommended with symm_method = "OR" and small n), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
 #' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
 #' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -554,7 +554,7 @@ GGReg_mean_estimation <- function(
 #' @param slurm_script_path Path to the SLURM script to be used for parallelization (if use_slurm = TRUE) - Character; default "./slurm_ggReg_node.sbatch"
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
-#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
+#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "AND" or "OR" (default "AND")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
 #' 
 #' @return A list containing:
@@ -574,7 +574,7 @@ GGReg_cov_estimation_SLURM <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  selection = "ebic_relaxed",
+  selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
   tune_hyperparams = TRUE,
@@ -586,7 +586,7 @@ GGReg_cov_estimation_SLURM <- function(
   slurm_script_path = "./slurm_ggReg_node.sbatch",
   output_path = "./results/",
   name_output = "ggReg_result",
-  symm_method ="OR",
+  symm_method ="AND",
   verbose = FALSE) 
 {
   n <- nrow(Z0)
@@ -656,7 +656,7 @@ GGReg_cov_estimation_SLURM <- function(
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
-#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "bic_relaxed" (default: minimum BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations; recommended with symm_method = "AND"), "ebic_relaxed" (as "bic_relaxed" with the extended BIC; recommended with symm_method = "OR" and small n), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
 #' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
 #' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -667,7 +667,7 @@ GGReg_cov_estimation_SLURM <- function(
 #' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
-#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
+#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "AND" or "OR" (default "AND")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
 #' 
 #' @return A list containing:
@@ -688,7 +688,7 @@ GGReg_cov_estimation_sequential <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  selection = "ebic_relaxed",
+  selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
   tune_hyperparams = TRUE,
@@ -699,7 +699,7 @@ GGReg_cov_estimation_sequential <- function(
   K = 5,
   output_path = "./results/",
   name_output = "ggReg_result",
-  symm_method ="OR",
+  symm_method ="AND",
   verbose = FALSE) 
 {
   n <- nrow(Z0)
@@ -765,7 +765,7 @@ GGReg_cov_estimation_sequential <- function(
 #' @param gamma Pearson correlation threshold for screening (if scr = TRUE) - Numeric; If NULL 20% quantile of absolute correlations (default NULL)
 #' @param scr_matrix Matrix of values {0,1} that describe the inclusion criteria to be used for screening if scr = TRUE and gamma is NULL. If NULL, screening is based on correlation (default NULL)
 #' @param lambda_prec Penalization term in Lasso for precision estimation - Numeric; If NULL, lambda is selected by the rule in 'selection' (default NULL)
-#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "ebic_relaxed" (default: minimum extended BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations), "bic_relaxed" (as "ebic_relaxed" with the BIC), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
+#' @param selection Rule used to select the penalty (lambda) and the hyperparameters of each node-wise regression - Character; one of "bic_relaxed" (default: minimum BIC computed on the RSS of the OLS refit of each support, over the lambda path and the hyperparameter combinations; recommended with symm_method = "AND"), "ebic_relaxed" (as "bic_relaxed" with the extended BIC; recommended with symm_method = "OR" and small n), "bic" / "ebic" (BIC / extended BIC computed on the RSS of the penalised fit; these over-select as n grows), "cv_min" / "cv_1se" (K-fold cross-validation within each combination, lambda.min or lambda.1se, combination by BIC), "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or by cross-validation). See GGReg_node_model_selection()
 #' @param refit Logical indicating whether the selected predictors are refitted by OLS, removing the shrinkage of the edge weights - Logical; default TRUE (always TRUE for stability selection)
 #' @param selection_control List of settings of the selection rules: ebic_gamma (default 0.5), stab_B (number of subsamples, default 50), stab_fraction (default 0.5), stab_pi (selection-probability threshold, default 0.75), stab_pfer (expected false selections per node, default 1) - List; default list()
 #' @param tune_hyperparams Logical indicating whether to perform hyperparameter tuning (weight and aloha) for precision estimation - Logical; default TRUE
@@ -776,7 +776,7 @@ GGReg_cov_estimation_sequential <- function(
 #' @param K Number of folds for cross-validation, used by the selection rules "cv_min", "cv_1se" and "stability_cv" - Numeric; default 5
 #' @param output_path Directory where SLURM job outputs will be saved (if use_slurm = TRUE) - Character; default "./results/"
 #' @param name_output Base name for SLURM job output files (if use_slurm = TRUE) - Character; default "ggReg_result"
-#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "OR" or "AND" (default "OR")
+#' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "AND" or "OR" (default "AND")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
 #' 
 #' @return A list containing:
@@ -796,7 +796,7 @@ GGReg_cov_estimation_parallel <- function(
   gamma = NULL,
   scr_matrix = NULL,
   lambda_prec = NULL,
-  selection = "ebic_relaxed",
+  selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
   tune_hyperparams = TRUE,
@@ -807,7 +807,7 @@ GGReg_cov_estimation_parallel <- function(
   K = 5,
   output_path = "./results/",
   name_output = "ggReg_result",
-  symm_method ="OR",
+  symm_method ="AND",
   verbose = FALSE) 
 {
   n <- nrow(Z0)
@@ -1183,8 +1183,8 @@ GGReg_cov_single_node_processing <- function(
 #' @param make_pf Function of the weight hyperparameter returning the penalty factor of each column of X
 #' @param combos Hyperparameter combinations to evaluate - data frame with columns asparse and weight
 #' @param selection Selection rule - Character:
-#'   "ebic_relaxed" (default; lambda and hyperparameters by the minimum extended BIC over the lambda path and the combinations, computed on the RSS of the OLS refit of each support),
-#'   "bic_relaxed" (as "ebic_relaxed" with the BIC),
+#'   "bic_relaxed" (default; lambda and hyperparameters by the minimum BIC over the lambda path and the combinations, computed on the RSS of the OLS refit of each support; best with AND symmetrisation for n >= 5000),
+#'   "ebic_relaxed" (as "bic_relaxed" with the extended BIC; best with OR symmetrisation for small n),
 #'   "bic" / "ebic" (as the relaxed rules but on the RSS of the penalised fit; the lasso shrinkage inflates this RSS by an amount growing with n, so these rules choose ever smaller lambda and over-select as n grows),
 #'   "cv_min" / "cv_1se" (lambda by K-fold cross-validation within each combination, lambda.min or lambda.1se; combination by BIC),
 #'   "stability_bic" / "stability_cv" (stability selection at the hyperparameters chosen by "bic_relaxed" or "cv_min")
@@ -1204,7 +1204,7 @@ GGReg_cov_single_node_processing <- function(
 #' With refit = TRUE the selected predictors are refitted by OLS, which removes the shrinkage of the edge weights; the residual variance is RSS / (n - df).
 GGReg_node_model_selection <- function(
   X, y, group, pf_group, make_pf, combos,
-  selection = "ebic_relaxed",
+  selection = "bic_relaxed",
   lambda_prec = NULL,
   K = 5,
   refit = TRUE,
@@ -1212,7 +1212,7 @@ GGReg_node_model_selection <- function(
   seed_cv = 2024,
   seed_stab = 5000)
 {
-  rules <- c("ebic_relaxed", "bic_relaxed", "bic", "ebic", "cv_min", "cv_1se",
+  rules <- c("bic_relaxed", "ebic_relaxed", "bic", "ebic", "cv_min", "cv_1se",
              "stability_bic", "stability_cv")
   if (!selection %in% rules) {
     stop("selection must be one of: ", paste(rules, collapse = ", "))

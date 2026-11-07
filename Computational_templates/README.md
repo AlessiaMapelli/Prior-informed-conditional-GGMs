@@ -29,14 +29,23 @@ For each node, the penalty `λ` and the hyperparameters (the sparsity-group bala
 
 | `selection` | `λ` | `α`, `ϑ` | Cost |
 |---|---|---|---|
-| `"ebic_relaxed"` (default) | minimum extended BIC (γ = 0.5) along the `λ` path, computed on the RSS of the OLS refit of each support | jointly with `λ` | `λ` paths + one Gram matrix per node |
-| `"bic_relaxed"` | as above with the BIC | jointly with `λ` | as above |
+| `"bic_relaxed"` (default) | minimum BIC along the `λ` path, computed on the RSS of the OLS refit of each support | jointly with `λ` | `λ` paths + one Gram matrix per node |
+| `"ebic_relaxed"` | as above with the extended BIC (γ = 0.5) | jointly with `λ` | as above |
 | `"bic"` / `"ebic"` | minimum BIC / extended BIC on the RSS of the penalised fit (over-select as n grows; kept for comparison) | jointly with `λ` | `λ` paths only |
 | `"cv_min"` / `"cv_1se"` | K-fold cross-validation, `lambda.min` / `lambda.1se` | BIC at the selected `λ` | paths + CV |
 | `"stability_bic"` | stability selection (50 half-subsamples, selection probability ≥ 0.75, ≤ 1 expected false selection per node) | those of `"bic_relaxed"` | paths + 50 subsample paths |
 | `"stability_cv"` | as above | those of `"cv_min"` | paths + CV + 50 subsample paths |
 
-With `refit = TRUE` (default) the selected predictors of each node are refitted by OLS, which removes the shrinkage of the edge weights; the selected edges are unchanged. The default (`"ebic_relaxed"` with refit) and the alternatives were compared in simulation studies (see `Add_simulation_analysis/` and `Simulation_analysis_v2/selection_test/`): cross-validation with `lambda.min`, the rule of the first version of this template, and BIC on the penalised RSS both select increasingly dense networks as the sample size grows; the relaxed criteria do not, and `"ebic_relaxed"` was as accurate as stability selection at about one fifth of its cost.
+With `refit = TRUE` (default) the selected predictors of each node are refitted by OLS, which removes the shrinkage of the edge weights; the selected edges are unchanged. The rules were compared in simulation studies (see `Add_simulation_analysis/` §8 and `Simulation_analysis_v2/selection_test/`): cross-validation with `lambda.min`, the rule of the first version of this template, and BIC on the penalised RSS both select increasingly dense networks as the sample size grows; the relaxed criteria do not, and are as accurate as stability selection at a fraction of its cost.
+
+**Default and guideline.** The default is `selection = "bic_relaxed"` with `symm_method = "AND"`: it is the most accurate combination for n ≥ 5000, in particular for binary covariate effects, the focus of the case study. With small samples (n ≈ 1000), and for continuous covariate effects at moderate n, `"ebic_relaxed"` with `"OR"` is preferable: the BIC admits more false edges in single regressions, which AND removes only partly. F1 (Part 1, p = 100, q = 3, noisy prior, 100 replications), n = 1k / 5k / 10k / 20k:
+
+| Component | BIC relaxed + AND (default) | EBIC relaxed + OR |
+|---|---|---|
+| Baseline | 0.90 / 0.98 / 0.99 / 0.99 | 0.91 / 0.97 / 0.97 / 0.96 |
+| Binary effect | 0.63 / 0.97 / 0.99 / 0.99 | 0.64 / 0.95 / 0.96 / 0.95 |
+| Continuous effect | 0.08 / 0.53 / 0.83 / 0.97 | 0.06 / 0.58 / 0.86 / 0.97 |
+| Overall | 0.71 / 0.89 / 0.95 / 0.98 | 0.73 / 0.89 / 0.94 / 0.96 |
 
 ---
 
@@ -198,12 +207,12 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 | `asparse_grid` | `c(0.75, 0.5, 0.9, 0.99)` | Grid for the group/element sparsity balance `α` |
 | `weight_grid` | `c(1.0, 0.8, 1.1, 1.3)` | Grid for the covariate penalty scaling `ϑ` |
 | `random_hyper_search` | `FALSE` | Use random search instead of full grid for hyperparameter tuning |
-| `selection` | `"ebic_relaxed"` | Rule selecting `λ` (and `α`, `ϑ`): `"ebic_relaxed"`, `"bic_relaxed"`, `"bic"`, `"ebic"`, `"cv_min"`, `"cv_1se"`, `"stability_bic"`, `"stability_cv"` (see Method Summary) |
+| `selection` | `"bic_relaxed"` | Rule selecting `λ` (and `α`, `ϑ`): `"bic_relaxed"`, `"ebic_relaxed"`, `"bic"`, `"ebic"`, `"cv_min"`, `"cv_1se"`, `"stability_bic"`, `"stability_cv"` (see Method Summary) |
 | `refit` | `TRUE` | OLS refit of the selected predictors (always `TRUE` for stability selection) |
 | `selection_control` | `list()` | Settings of the rules: `ebic_gamma` (0.5), `stab_B` (50), `stab_fraction` (0.5), `stab_pi` (0.75), `stab_pfer` (1) |
 | `K` | `5` | Folds of the cross-validation rules |
 | `lambda_prec` | `NULL` | Fixed `λ` for all nodes (the hyperparameters are then chosen by BIC) |
-| `symm_method` | `"OR"` | Symmetrization rule: `"OR"` (less conservative) or `"AND"` |
+| `symm_method` | `"AND"` | Symmetrization rule: `"AND"` (more conservative; default, with `"bic_relaxed"`) or `"OR"` (with `"ebic_relaxed"` for small n) |
 | `use_slurm` | `FALSE` | Use SLURM for HPC parallelization |
 
 ---

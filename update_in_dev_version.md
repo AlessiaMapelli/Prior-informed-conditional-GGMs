@@ -7,7 +7,7 @@ This file tracks every change made to the repository since the last commit on `m
 - **Status:** committed and pushed on branch `dev` (2026-11-06). The matching package changes are on the package branch `v.0.2` (see `Rpackages/prCGGM/update_in_dev_version.md`).
 - **Detail:** the READMEs referenced below hold the full findings, tables and run logs.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-07. Changes of 2026-11-07 (5c and the related README updates) committed on `dev`.
 
 ---
 
@@ -21,6 +21,7 @@ Last updated: 2026-11-06.
 | 4 | `Computational_templates/ggReg_main_functions.R` | Selection rules, OLS refit, unified node fitting | New default rule; previous behaviour reproducible |
 | 5 | `Computational_templates/ggReg_main_functions.R` | Relaxed BIC/EBIC, new default `ebic_relaxed` | New default rule |
 | 5b | `Computational_templates/ggReg_main_functions.R` | Default grids aligned with the simulations | Default fits change (α 0.95 → 0.99, ϑ 1.5 dropped) |
+| 5c | `Computational_templates/ggReg_main_functions.R` | Final default `bic_relaxed` with `symm_method = "AND"` (2026-11-07) | Default fits change (rule and symmetrisation) |
 | 6 | `Computational_templates/README.md` | Documents 4, 5 and 5b | — |
 | 7 | `Add_simulation_analysis/` (git-ignored) | Exploratory and sensitivity simulations (Supplementary Part 1) | New supplementary material |
 | 8 | `Simulation_analysis_v2/` (new) | Full simulation study and selection test (main text and Supplementary Part 2) | New main-text simulation |
@@ -120,10 +121,26 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
 - `random_hyper_search` stays `FALSE`: the full 16 combinations. The paper's simulations use 50% random search (8 combinations per node), which the paper should state.
 - The extended grid of the selection test, α {0.5, 0.75, 0.9, 0.95, 0.99, 1} × ϑ {0.4, 0.6, 0.8, 1, 1.3}, is used only in `Simulation_analysis_v2/selection_test/`.
 
+## 5c. Template: final default BIC relaxed + AND (2026-11-07)
+
+- **Default `selection = "bic_relaxed"`** (was `"ebic_relaxed"`) and **`symm_method = "AND"`** (was `"OR"`) in all four entry points; documentation and the order of `rules` in `GGReg_node_model_selection()` updated.
+- **Reason** (Supplementary Parts 1 and 2, 100 replications): BIC relaxed + AND is best for n ≥ 5000 and keeps improving with n, and is best for binary covariate effects, the setting of the case study (large n, binary covariates). EBIC relaxed + OR is best at small n (n ≈ 1000) and remains the recommended alternative there. F1, n = 1k / 5k / 10k / 20k (Part 1, noisy prior):
+
+  | Component | BIC relaxed + AND | EBIC relaxed + OR |
+  |---|---|---|
+  | Baseline | 0.90 / 0.98 / 0.99 / 0.99 | 0.91 / 0.97 / 0.97 / 0.96 |
+  | Binary effect | 0.63 / 0.97 / 0.99 / 0.99 | 0.64 / 0.95 / 0.96 / 0.95 |
+  | Continuous effect | 0.08 / 0.53 / 0.83 / 0.97 | 0.06 / 0.58 / 0.86 / 0.97 |
+  | Overall | 0.71 / 0.89 / 0.95 / 0.98 | 0.73 / 0.89 / 0.94 / 0.96 |
+
+- The selected supports for a given rule are unchanged; only the defaults change. Results of 5 with `ebic_relaxed` are reproduced with `selection = "ebic_relaxed", symm_method = "OR"`.
+- Copy in `Simulation_analysis_v2/` refreshed; `run_task.R` default `selection = "bic_relaxed"` (OR and AND are both evaluated there).
+
 ## 6. `Computational_templates/README.md`
 
 - Method summary: the table of selection rules and the refit.
-- Parameter table: `selection` (default `"ebic_relaxed"`), `refit`, `selection_control`, `K`, `lambda_prec`.
+- Parameter table: `selection` (default `"bic_relaxed"` since 2026-11-07, `"ebic_relaxed"` before), `symm_method` (default `"AND"` since 2026-11-07), `refit`, `selection_control`, `K`, `lambda_prec`.
+- Method summary: "Default and guideline" paragraph with the BIC relaxed + AND vs EBIC relaxed + OR table (2026-11-07).
 - `optimal_params` description updated.
 
 ## 7. `Add_simulation_analysis/` (exploratory and sensitivity simulations; Supplementary Part 1)
@@ -156,7 +173,7 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
   - q = 1: x1 binary; q = 3: x1 continuous, x2 continuous null, x3 binary.
 - **Files:**
   - `R/sim_design.R` (generator, prior, evaluation);
-  - `run_task.R` (one dataset × three priors via the template; default `selection = "ebic_relaxed"` since 2026-11-06);
+  - `run_task.R` (one dataset × three priors via the template; default `selection = "bic_relaxed"` since 2026-11-07, `"ebic_relaxed"` on 2026-11-06);
   - `analyse_results.R`;
   - `slurm/` (settings, timing test, task and analysis sbatch);
   - copy of the template.
@@ -165,8 +182,9 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
   - Part 2 at 100 replications: `run_part2.sbatch`.
   - Analysis scripts: `analyse_selection_test.R`, `overall_metrics.R`.
 - **Status:**
-  - p = 50 / 100 were run with `selection = "bic"` (penalised RSS); those results were moved to `results_bic_penalised/` (2026-11-06), and the blocks are to be rerun with `ebic_relaxed` into `results/`.
+  - p = 50 / 100 were run with `selection = "bic"` (penalised RSS); those results were moved to `results_bic_penalised/` (2026-11-06), and the blocks are to be rerun with `bic_relaxed` into `results/`.
   - p = 250 / 500 are not yet run.
+  - Part 2 (job 45436977, 2026-11-07): complete, analysed (`selection_test/results_100/summary/`); extended grid no gain at 2× cost; same rule ranking under all three priors.
 - **Git (2026-11-06):** code and `README.md` tracked; `results*/` (incl. `results_bic_penalised/`, `results_timing/`), `logs/` and `selection_test/results*/` ignored (`.gitignore`).
 
 ---
@@ -182,12 +200,12 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
 | Selection test `bic_current` vs main study | identical in all 20 cluster tasks |
 | Relaxed RSS (Gram) vs `lm.fit` | identical to 1e-14 |
 
-## Decisions (2026-11-06)
+## Decisions (2026-11-06, revised 2026-11-07)
 
 1. Add `bic_relaxed` and `ebic_relaxed` to the template and the package.
 2. Stability selection with BIC hyperparameters uses the relaxed BIC.
 3. Keep the hyperparameter grid α {0.5, 0.75, 0.9, 0.99} × ϑ {0.8, 1, 1.1, 1.3}, with 50% random search, in the simulations.
-4. `ebic_relaxed` is the default and the main rule of the paper; OR and AND are both reported.
+4. ~~`ebic_relaxed` is the default and the main rule of the paper~~ **Revised 2026-11-07:** `bic_relaxed` with AND symmetrisation is the default (template and package) and the main rule of the paper; OR also reported. Guideline: EBIC relaxed with OR for small samples (n ≈ 1000).
 
 ## Open points
 

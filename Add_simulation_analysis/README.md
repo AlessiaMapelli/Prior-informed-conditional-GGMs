@@ -323,7 +323,61 @@ SDs: baseline ≤ 0.05 for all rules except the backbone; covariate effects 0.02
 
 **Second pass: stability selection at the BIC hyperparameters** (`--mode stab_bic`, `slurm/run_settings_v3_stab_bic.sbatch`). Stability selection uses the whole λ path on each subsample, so it needs only α and ϑ; in the first pass these came from the lambda.min fit, which requires the cross-validation. The second pass takes them from the BIC fit instead (no cross-validation), on the same 400 datasets regenerated from the seed (checked against `truth.rds`; the BIC/EBIC results of the second pass must equal the first pass, which `analyse_results_v3.R` checks). Outputs `evaluation_stab_bic.rds` and `times_stab_bic.rds` per replication; the summary reports both versions ("Stability selection (CV hyperparameters)" and "(BIC hyperparameters)"). Completed (job 45378868, all 400; BIC rows identical to the first pass, 3,200 rows). F1, OR, n = 1k / 5k / 10k / 20k: baseline 0.90 / 0.94 / 0.94 / 0.93 (CV hyperparameters 0.90 / 0.93 / 0.93 / 0.92); covariate effects 0.16 / 0.54 / 0.80 / 0.94 (CV 0.16 / 0.60 / 0.84 / 0.94); AND baseline identical to the CV version. Time per node 62 → 145 s against 106 → 304 s.
 
-**Third pass: relaxed criteria** (`--mode relaxed`, `slurm/run_settings_v3_relaxed.sbatch`, 2026-11-06). Same 400 datasets (checked against `truth.rds`), no cross-validation: BIC/EBIC on the penalised RSS (must equal the first pass), BIC relaxed, EBIC relaxed, and stability selection at the hyperparameters of BIC relaxed. Outputs `evaluation_relaxed.rds`, `times_relaxed.rds`. `analyse_results_v3.R` now also: splits the covariate effects into binary and continuous in all tables and figures; writes the overall metrics (`overall_{F1,FPR,Pearson}_{OR,AND}.csv`: all components of a fit pooled, F1 and FPR from the summed TP / FP / FN / TN, Pearson as the TP-weighted mean of the per-component correlations); adds the relaxed rules to the cost table. Checked locally (n = 1k, rep 1): data identical to `truth.rds`, BIC/EBIC identical to the first pass (16 rows). Results: pending. This is Part 1 of the supplementary sensitivity analysis (paper structure in `Simulation_analysis_v2/README.md`).
+**Third pass: relaxed criteria** (`--mode relaxed`, `slurm/run_settings_v3_relaxed.sbatch`, 2026-11-06). Same 400 datasets (checked against `truth.rds`), no cross-validation: BIC/EBIC on the penalised RSS (must equal the first pass), BIC relaxed, EBIC relaxed, and stability selection at the hyperparameters of BIC relaxed. Outputs `evaluation_relaxed.rds`, `times_relaxed.rds`. `analyse_results_v3.R` now also: splits the covariate effects into binary and continuous in all tables and figures; writes the overall metrics (`overall_{F1,FPR,Pearson}_{OR,AND}.csv`: all components of a fit pooled, F1 and FPR from the summed TP / FP / FN / TN, Pearson as the TP-weighted mean of the per-component correlations); adds the relaxed rules to the cost table. Checked locally (n = 1k, rep 1): data identical to `truth.rds`, BIC/EBIC identical to the first pass (16 rows). This is Part 1 of the supplementary sensitivity analysis (paper structure in `Simulation_analysis_v2/README.md`).
+
+**Results of the third pass (job 45436972, 2026-11-07).** All 400 settings, no errors or failed nodes; BIC/EBIC rows identical to the first pass (6,400 rows). Tables in `results_v3/summary/` (`overall_*`, `table_*`, `computing_time.csv`).
+
+Overall F1 (all components pooled), n = 1k / 5k / 10k / 20k:
+
+| Rule | OR | AND |
+|---|---|---|
+| CV lambda.min | 0.53 / 0.47 / 0.35 / 0.24 | 0.69 / 0.79 / 0.75 / 0.61 |
+| CV lambda.1se | 0.56 / 0.75 / 0.81 / 0.85 | 0.28 / 0.54 / 0.67 / 0.78 |
+| BIC (penalised RSS) | 0.71 / 0.81 / 0.84 / 0.80 | 0.69 / 0.85 / 0.90 / 0.94 |
+| BIC relaxed | 0.59 / 0.82 / 0.88 / 0.92 | **0.71 / 0.89 / 0.95 / 0.98** |
+| EBIC (penalised RSS) | 0.71 / 0.82 / 0.86 / 0.84 | 0.66 / 0.83 / 0.88 / 0.94 |
+| **EBIC relaxed** | **0.73 / 0.89 / 0.94 / 0.96** | 0.68 / 0.88 / 0.94 / 0.98 |
+| Stability (CV hyperparameters) | 0.72 / 0.85 / 0.90 / 0.92 | 0.69 / 0.84 / 0.90 / 0.96 |
+| Stability (BIC hyperparameters) | 0.72 / 0.85 / 0.90 / 0.93 | 0.69 / 0.84 / 0.89 / 0.96 |
+| Stability (BIC relaxed hyperparameters) | 0.74 / 0.87 / 0.92 / 0.93 | 0.70 / 0.85 / 0.91 / 0.96 |
+| lambda.min + pcor | 0.55 / 0.83 / 0.86 / 0.86 | 0.67 / 0.84 / 0.86 / 0.86 |
+| lambda.min + backbone | 0.00 / 0.00 / 0.15 / 0.42 | 0.00 / 0.00 / 0.00 / 0.05 |
+
+Overall FPR (×1000), OR: EBIC relaxed 1.0 / 0.9 / 0.8 / 1.0 (flat in n); BIC (penalised) 1.6 → 6.5, EBIC (penalised) 0.7 → 4.6, CV lambda.min 12 → 85, BIC relaxed 9.6 → 2.2. Pearson on true positives 0.986–0.999 for all rules.
+
+F1 per component, EBIC relaxed (OR / AND), n = 1k / 5k / 10k / 20k: baseline 0.91 / 0.97 / 0.97 / 0.96 and 0.87 / 0.98 / 0.99 / 0.99; binary effect 0.64 / 0.95 / 0.96 / 0.95 and 0.42 / 0.98 / 1.00 / 1.00; continuous effect 0.06 / 0.58 / 0.86 / 0.97 and 0.01 / 0.34 / 0.70 / 0.93. BIC relaxed with AND: continuous 0.08 / 0.53 / 0.83 / 0.97, binary 0.63 / 0.97 / 0.99 / 0.99.
+
+Time per node (s), n = 1k → 20k: BIC/EBIC 6.8 → 30.0; BIC/EBIC relaxed 7.3 → 28.9; CV rules 46.8 → 190.5; stability at BIC relaxed hyperparameters 64.1 → 133.8, at BIC 62.2 → 144.7, at CV 105.6 → 303.8.
+
+**Conclusions of the third pass (before the final decision below).**
+1. Symmetrisation: with EBIC relaxed, OR is better than AND at n ≤ 5k and for the continuous effects at every n, equal at 10k, and 0.02 lower at 20k → OR as main symmetrisation.
+2. EBIC relaxed with OR is the best rule overall at every n, the only one with flat FPR, at the cost of BIC (no cross-validation), and above stability selection at 1/2–1/5 of its cost.
+3. With AND, BIC relaxed is slightly better than EBIC relaxed (overall 0.71 / 0.89 / 0.95 / 0.98 vs 0.68 / 0.88 / 0.94 / 0.98), mostly through the covariate effects → guideline "EBIC relaxed with OR, BIC relaxed with AND" confirmed.
+4. The rules on the penalised RSS and CV lambda.min lose accuracy as n grows; the post-hoc thresholds (pcor, backbone) do not fix this.
+
+**Final decision (2026-11-07): default BIC relaxed + AND.** The user chose BIC relaxed with AND symmetrisation as the default of the template, the package and the main study, instead of EBIC relaxed + OR. Reason: it improves further as n grows, is best for n ≥ 5000, and is best for binary covariate effects; the case study (T2D, UK Biobank) has large n and binary covariates. EBIC relaxed + OR remains the recommended alternative for small samples. F1, mean (SD) over 100 replications, n = 1k / 5k / 10k / 20k:
+
+| Component | Rule | n = 1000 | n = 5000 | n = 10000 | n = 20000 |
+|---|---|---|---|---|---|
+| Baseline | BIC relaxed + AND | 0.90 (0.02) | 0.98 (0.01) | 0.99 (0.01) | 0.99 (0.01) |
+| Baseline | EBIC relaxed + OR | 0.91 (0.02) | 0.97 (0.01) | 0.97 (0.01) | 0.96 (0.02) |
+| Binary effect | BIC relaxed + AND | 0.63 (0.10) | 0.97 (0.02) | 0.99 (0.01) | 0.99 (0.01) |
+| Binary effect | EBIC relaxed + OR | 0.64 (0.11) | 0.95 (0.02) | 0.96 (0.02) | 0.95 (0.02) |
+| Continuous effect | BIC relaxed + AND | 0.08 (0.04) | 0.53 (0.10) | 0.83 (0.06) | 0.97 (0.03) |
+| Continuous effect | EBIC relaxed + OR | 0.06 (0.05) | 0.58 (0.10) | 0.86 (0.06) | 0.97 (0.02) |
+| Null covariate | BIC relaxed + AND | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) |
+| Null covariate | EBIC relaxed + OR | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) | 0.00 (0.00) |
+| Overall | BIC relaxed + AND | 0.71 (0.04) | 0.89 (0.03) | 0.95 (0.01) | 0.98 (0.01) |
+| Overall | EBIC relaxed + OR | 0.73 (0.03) | 0.89 (0.02) | 0.94 (0.01) | 0.96 (0.01) |
+
+(Null covariate: no true edges, so F1 = 0 by definition; both rules have FPR ≈ 0 there.)
+
+Considerations:
+- **EBIC relaxed + OR is best at low n:** overall 0.73 vs 0.71 at n = 1k (baseline 0.91 vs 0.90, binary 0.64 vs 0.63), and for continuous effects at moderate n (0.58 vs 0.53 at 5k, 0.86 vs 0.83 at 10k). It is also the only rule whose FPR stays flat at about 1/1000 with OR.
+- **BIC relaxed + AND is best for n ≥ 5000** and keeps improving with n: baseline and binary effects reach 0.99 at n ≥ 10k, while EBIC relaxed + OR stays at 0.95–0.97 (OR keeps a few false edges selected in only one regression). The two are equal on overall F1 at 5k, and BIC + AND is ahead by 0.01 at 10k and 0.02 at 20k.
+- Without AND, BIC relaxed over-selects at small n (FPR ~1% with OR at n = 1k, Part 2); AND removes most of these edges. The two settings should therefore always go together: BIC relaxed with AND, EBIC relaxed with OR.
+- Same cost: both use the relaxed criterion on the same λ paths (7.3 → 28.9 s per node).
+- Part 2 (three priors) gives the same pattern under every prior (`Simulation_analysis_v2/README.md`, Part 2 results).
 
 **Conclusions for the paper (update of §7)**
 1. lambda.min should not be used: it is the only rule whose false positives grow with n, on the baseline and on null covariates, and its baseline F1 falls from 0.70 to 0.38.

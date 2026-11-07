@@ -5,7 +5,7 @@
 # Usage (from the Simulation_analysis_v2 folder):
 #   Rscript run_task.R --n 5000 --p 100 --q 3 --rep 1 [--ncores 16]
 #                      [--priors perfect,noisy,none] [--nodes all|1-16]
-#                      [--selection ebic_relaxed] [--out results] [--tmp <dir>]
+#                      [--selection bic_relaxed] [--out results] [--tmp <dir>]
 # The node-wise regressions use the template functions
 # (ggReg_main_functions.R): GGReg_cov_single_node_processing() for each node,
 # run in parallel on --ncores cores, and collect_node_results() with OR and
@@ -21,7 +21,7 @@
 #                   data generation time
 
 opt <- list(n = NA, p = NA, q = NA, rep = NA, ncores = NA, priors = "perfect,noisy,none",
-            nodes = "all", selection = "ebic_relaxed", out = "results", tmp = tempdir())
+            nodes = "all", selection = "bic_relaxed", out = "results", tmp = tempdir())
 args <- commandArgs(trailingOnly = TRUE)
 for (k in seq(1, length(args), by = 2)) opt[[sub("^--", "", args[k])]] <- args[k + 1]
 for (v in c("n", "p", "q", "rep", "ncores")) opt[[v]] <- as.integer(opt[[v]])

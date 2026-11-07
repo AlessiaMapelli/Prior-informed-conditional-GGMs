@@ -49,7 +49,7 @@ With a fixed probability, the covariate networks grow quadratically with p. At p
 
 ## Model fitting
 - **Code:** the template functions (`ggReg_main_functions.R`, a copy of `Computational_templates/ggReg_main_functions.R` after the step-4 update, see below): `GGReg_cov_single_node_processing()` for each node, run in parallel on the cores of the task, and `collect_node_results()` for the symmetrisation. Data are generated with mean zero and standardised, so the mean-estimation step is skipped (`mean_estimation = FALSE`).
-- **[DECIDED 2026-11-04, REVISED 2026-11-06] Selection rule:** `selection = "ebic_relaxed"`: extended BIC (γ = 0.5) on the RSS of the OLS refit of each support along the λ path, jointly with α and ϑ (the 2026-11-04 choice, BIC on the penalised RSS, over-selects as n grows; see "Decisions on the selection rule" below and `Add_simulation_analysis/README.md`, "Hyperparameter tuning and selection rules"). `run_task.R` defaults to it since 2026-11-06.
+- **[DECIDED 2026-11-04, REVISED 2026-11-06 and 2026-11-07] Selection rule:** `selection = "bic_relaxed"`: BIC on the RSS of the OLS refit of each support along the λ path, jointly with α and ϑ; AND is the main symmetrisation, OR also reported (the 2026-11-04 choice, BIC on the penalised RSS, over-selects as n grows; `ebic_relaxed` was the default on 2026-11-06–07, before the final decision; see "Decisions on the selection rule" below and `Add_simulation_analysis/README.md` §8). `run_task.R` defaults to it since 2026-11-07.
 - **Hyperparameter grid:** α ∈ {0.5, 0.75, 0.9, 0.99}, ϑ ∈ {0.8, 1, 1.1, 1.3}, with a 50% random search (8 of the 16 pairs per node, node-specific seed). The same grid is used with and without the prior (without a prior the baseline penalty factor is 1 and ϑ still scales the covariate terms), so the only difference between the three fits is the prior.
 - **[DECIDED 2026-11-04] OLS refit** of the selected predictors (`refit = TRUE`); edge weights on the precision scale, δ_jk = −β̂_jk/σ̂²_j.
 - **[DECIDED 2026-11-04] Symmetrisation:** both OR and AND are evaluated, from the same node fits (`collect_node_results()` is called twice). Both will be reported; they also inform the guidelines.
@@ -164,6 +164,8 @@ Note on the timing test: in `sample_fitness_pl` the low node indices have the la
 - 2026-11-05: p = 50 and p = 100 blocks submitted with `%20` (not `%50`) and completed: 1,600 tasks, no errors in the logs, 100 replications in all 16 settings (`results/summary/completeness.csv`, analysis job 45426276). p = 250 and p = 500 not yet submitted.
 - 2026-11-05: **issue found: BIC over-selects as n grows.** F1 falls and FPR rises with n (e.g. p = 50, q = 1, Perfect prior, baseline F1 0.95 → 0.87 from n = 1k to 20k) while TPR is already 1. Cause: BIC is computed on the RSS of the penalised fit, which the lasso shrinkage inflates by an amount growing with n; BIC then prefers ever smaller lambda (selected lambda ∝ 1/n, `results/summary/tuning.csv`) and admits noise edges, which the OLS refit keeps. Local check (one dataset per n, p = 50, q = 1, no prior): BIC on the refitted ("relaxed") RSS gives baseline F1 0.92 / 0.97 / 0.99 at n = 1k / 5k / 20k, against 0.85 / 0.79 / 0.65. Same pattern in the v3 sensitivity runs (Add_simulation_analysis README §8). Plan: add `bic_relaxed` and `ebic_relaxed` to the template and the package after the selection test below; p = 50 / 100 to be rerun.
 - 2026-11-05: selection test written (`selection_test/`, see below); local check at n = 1000, p = 50, q = 3: the current BIC variant reproduces the main study exactly.
+- 2026-11-07: Part 1 (Add_simulation_analysis third pass, job 45436972) and Part 2 (job 45436977) completed without errors. Both confirm the relaxed criteria, the guideline (EBIC relaxed + OR best at small n, BIC relaxed + AND best for n ≥ 5000) and the current grid.
+- 2026-11-07: **final decision: default `bic_relaxed` + AND** (best for n ≥ 5000 and for binary effects, the case-study setting). Template, package (`v.0.2`) and `run_task.R` defaults changed; template copy in this folder refreshed. Main study p = 50 / 100 to be rerun into `results/`, then p = 250 / 500.
 
 ## Selection test (2026-11-05)
 Question: (i) how much does BIC on the relaxed RSS improve over BIC on the penalised RSS, and at what cost; (ii) does an extended hyperparameter grid help, given that the selections pile up at alpha = 0.99 and theta = 0.8; (iii) does stability selection gain from taking its hyperparameters from the relaxed BIC instead of the penalised one, or is the extra cost not worth it.
@@ -231,13 +233,13 @@ Overall metrics (all components of a fit pooled: F1 and FPR from the summed TP /
 1. Add `bic_relaxed` and `ebic_relaxed` to the template and the package.
 2. Stability selection with BIC hyperparameters takes them from the relaxed BIC (consistency; extra cost < 2%).
 3. Keep the current grid (alpha {0.5, 0.75, 0.9, 0.99} × theta {0.8, 1, 1.1, 1.3}, 50% random search).
-4. `ebic_relaxed` is the default and the main rule of the paper; OR and AND both reported. Guideline to be confirmed by Part 1: EBIC relaxed with OR, BIC relaxed with AND.
-Then: rerun p = 50 / 100 with the new rule and submit p = 250 / 500. The p = 50 / 100 results fitted with BIC on the penalised RSS were moved to `results_bic_penalised/` (2026-11-06); the reruns write to `results/` (`run_task.R` now defaults to `ebic_relaxed`).
+4. ~~`ebic_relaxed` is the default and the main rule of the paper~~ **[REVISED 2026-11-07, after Parts 1 and 2]: `bic_relaxed` with AND symmetrisation is the default (template, package) and the main rule of the paper; OR also reported.** It improves further as n grows, is best for n ≥ 5000 and for binary covariate effects, the focus of the case study (large n, binary covariates). Guideline: BIC relaxed with AND (default, n ≥ 5000), EBIC relaxed with OR for small samples (n ≈ 1000), where it is best (Part 1 overall F1 0.73 vs 0.71). Table and considerations in `Add_simulation_analysis/README.md` §8, "Final decision".
+Then: rerun p = 50 / 100 with the new rule and submit p = 250 / 500. The p = 50 / 100 results fitted with BIC on the penalised RSS were moved to `results_bic_penalised/` (2026-11-06); the reruns write to `results/` (`run_task.R` defaults to `bic_relaxed` since 2026-11-07; OR and AND are both evaluated for every fit).
 
 ## Structure of the simulation results in the paper [DECIDED 2026-11-06]
-- **Supplementary Part 1 — selection rules** (`Add_simulation_analysis/results_v3`, 100 replications, p = 100, q = 3, noisy prior, n ∈ {1k, 5k, 10k, 20k}). Rules (all with OLS refit): CV lambda.min, CV lambda.1se, BIC and EBIC on the penalised RSS, BIC relaxed, EBIC relaxed, stability selection at the CV / BIC / BIC-relaxed hyperparameters, lambda.min + pcor threshold, lambda.min + backbone. Logic: (i) overall F1, FPR, Pearson pooled over all components, by n and OR/AND → choose the symmetrisation; (ii) per component (baseline, binary effect, continuous effect, null): density, TPR, FPR, precision, F1, Pearson/Spearman on true positives, Frobenius error, for the chosen symmetrisation; (iii) computing cost per rule; (iv) guidelines: EBIC relaxed with OR, BIC relaxed with AND (to be confirmed).
+- **Supplementary Part 1 — selection rules** (`Add_simulation_analysis/results_v3`, 100 replications, p = 100, q = 3, noisy prior, n ∈ {1k, 5k, 10k, 20k}). Rules (all with OLS refit): CV lambda.min, CV lambda.1se, BIC and EBIC on the penalised RSS, BIC relaxed, EBIC relaxed, stability selection at the CV / BIC / BIC-relaxed hyperparameters, lambda.min + pcor threshold, lambda.min + backbone. Logic: (i) overall F1, FPR, Pearson pooled over all components, by n and OR/AND → choose the symmetrisation; (ii) per component (baseline, binary effect, continuous effect, null): density, TPR, FPR, precision, F1, Pearson/Spearman on true positives, Frobenius error, for the chosen symmetrisation; (iii) computing cost per rule; (iv) guidelines: BIC relaxed with AND (default, n ≥ 5000, best for binary effects), EBIC relaxed with OR for small n (confirmed 2026-11-07).
 - **Supplementary Part 2 — robustness across priors and grid** (`selection_test/results_100`, 100 replications, p = 100, q = 3, the main-study datasets, three priors, n ∈ {1k, 5k, 10k, 20k}). BIC relaxed and EBIC relaxed (BIC on the penalised RSS kept as reference), current vs extended grid. Logic: both behave well across priors; the extended grid does not improve performance and doubles the cost.
-- **Main text — impact of the prior** (this study, `results/`): factorial n × p × q × prior with EBIC relaxed, OR and AND.
+- **Main text — impact of the prior** (this study, `results/`): factorial n × p × q × prior with BIC relaxed, AND (main) and OR.
 
 ## Part 2 (selection test at 100 replications)
 `selection_test/run_selection_test.R --stab 0` (no stability selection), `selection_test/run_part2.sbatch` (array 1–400: tasks 1–100 n = 20k, 101–200 n = 10k, 201–300 n = 5k, 301–400 n = 1k). Expected about 20 min per n = 20k task (16 cores). Checked locally (n = 1k, p = 50, rep 2): the current BIC reproduces the main study.
@@ -247,4 +249,29 @@ sbatch --array=1-400%20 selection_test/run_part2.sbatch
 sbatch --mem=8G --time=01:00:00 --output=logs/part2_analyse_%j.out \
   --wrap="source /center/healthds/singularity_functions; Rscript --vanilla selection_test/analyse_selection_test.R selection_test/results_100; Rscript --vanilla selection_test/overall_metrics.R selection_test/results_100"
 ```
-Results: pending.
+### Results (job 45436977, 2026-11-07; 400 tasks, 100 replications per n, summary run locally → `selection_test/results_100/summary/`)
+Overall F1 (all components pooled), n = 1k / 5k / 10k / 20k, current grid (extended grid within ±0.01 for BIC/EBIC relaxed everywhere; for penalised BIC up to +0.03 at n ≥ 10k, still well below the relaxed criteria):
+
+| Prior | Rule | OR | AND |
+|---|---|---|---|
+| Perfect | BIC (penalised RSS) | 0.79 / 0.89 / 0.91 / 0.87 | 0.75 / 0.89 / 0.93 / 0.97 |
+| Perfect | BIC relaxed | 0.58 / 0.81 / 0.88 / 0.93 | 0.76 / 0.91 / 0.96 / 0.99 |
+| Perfect | **EBIC relaxed** | **0.79 / 0.92 / 0.96 / 0.98** | 0.77 / 0.91 / 0.96 / 0.99 |
+| Noisy | BIC (penalised RSS) | 0.71 / 0.82 / 0.83 / 0.79 | 0.70 / 0.87 / 0.91 / 0.94 |
+| Noisy | BIC relaxed | 0.59 / 0.82 / 0.88 / 0.92 | 0.73 / 0.90 / 0.95 / 0.98 |
+| Noisy | **EBIC relaxed** | **0.75 / 0.90 / 0.94 / 0.96** | 0.70 / 0.89 / 0.94 / 0.98 |
+| None | BIC (penalised RSS) | 0.62 / 0.77 / 0.77 / 0.71 | 0.63 / 0.86 / 0.90 / 0.91 |
+| None | BIC relaxed | 0.55 / 0.81 / 0.88 / 0.91 | 0.66 / 0.90 / 0.95 / 0.98 |
+| None | **EBIC relaxed** | **0.69 / 0.89 / 0.94 / 0.95** | 0.65 / 0.88 / 0.94 / 0.98 |
+
+Overall FPR × 1000 (OR): EBIC relaxed 0.4–1.4 under all priors and all n; BIC relaxed falls from ~10–12 (n = 1k) to ~2; penalised BIC rises with n (Perfect 0.6 → 3.7, Noisy 1.8 → 6.9, None 3.3 → 10.4). Pearson on true positives 0.99–0.997 for all rules.
+
+Seconds per node (n = 1k → 20k): penalised BIC 6.2 → 27.7 (current) vs 12.0 → 53.1 (extended); BIC/EBIC relaxed 7.4 → 28.8 (current) vs 14.2 → 54.9 (extended). The relaxed criteria add ~1 s per node; the extended grid doubles the cost.
+
+Conclusions:
+1. **The extended grid does not help**: F1 and FPR unchanged (±0.01) for the relaxed criteria under every prior, at twice the cost → keep the current grid.
+2. **EBIC relaxed with OR is the best rule under all three priors** and every n; its FPR stays flat (~1/1000). The ranking is the same as in Part 1 (Noisy prior there), so the choice does not depend on the prior.
+3. **With AND, BIC relaxed is equal or slightly better** (+0.01–0.03, mainly at n = 1k and on covariate effects) → guideline confirmed: EBIC relaxed with OR, BIC relaxed with AND.
+4. BIC relaxed with OR over-selects at small n (FPR ~1% at n = 1k), as expected with P = 396 predictors per node.
+5. The prior gain survives the new rule: with EBIC relaxed + OR, Perfect > Noisy > None at every n (e.g. n = 1k: 0.79 / 0.75 / 0.69), the gap shrinking with n. Same with BIC relaxed + AND (n = 1k: 0.76 / 0.73 / 0.66; n = 20k: 0.99 / 0.98 / 0.98).
+6. **BIC relaxed + AND (final default) vs EBIC relaxed + OR, overall F1 n = 1k / 5k / 10k / 20k:** Perfect 0.76 / 0.91 / 0.96 / 0.99 vs 0.79 / 0.92 / 0.96 / 0.98; Noisy 0.73 / 0.90 / 0.95 / 0.98 vs 0.75 / 0.90 / 0.94 / 0.96; None 0.66 / 0.90 / 0.95 / 0.98 vs 0.69 / 0.89 / 0.94 / 0.95. As in Part 1, EBIC + OR is better at n = 1k under every prior, BIC + AND equal or better from n = 5k on, so the final decision holds under every prior.
