@@ -1,6 +1,6 @@
 # Simulation study for the paper (v2, full factorial design)
 
-Replaces the simulation in `Simulation_analysis/` (published version), whose generator had the problems documented in `Add_simulation_analysis/README.md` §3. The design choices (selection rule, refit, baseline target) follow the sensitivity analysis in `Add_simulation_analysis/` (§8 of its README, to be reported in the Supplementary material).
+Replaces the simulation of the preprint (`Preprint_simulation_analysis/`, formerly `Simulation_analysis/`), whose generator had the problems documented in `Add_simulation_analysis/README.md` §3. The design choices (selection rule, refit, baseline target) follow the sensitivity analysis in `Add_simulation_analysis/` (§8 of its README, to be reported in the Supplementary material).
 
 Status: **design agreed and timing test done (2026-11-04); ready to submit.** Decisions are marked **[DECIDED]** with the date.
 

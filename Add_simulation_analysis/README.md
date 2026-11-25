@@ -1,6 +1,6 @@
 # Additional simulation analysis (exploratory)
 
-Why does the cross-validated lasso produce very dense networks when n is large, and which selection rule should be used instead? This folder is self-contained. It uses copies of the original code in `code/` and never modifies `Simulation_analysis/` or `Computational_templates/`.
+Why does the cross-validated lasso produce very dense networks when n is large, and which selection rule should be used instead? It never modifies the preprint code (`Preprint_simulation_analysis/`, formerly `Simulation_analysis/`) or `Computational_templates/`. Since 2026-11-25 it sources the single template `../Computational_templates/ggReg_main_functions.R` and the preprint `Sim_functions.R` instead of the copies in `code/` (removed), and the v3 run (Part 1 of the Supplementary) is in `../Simulation_analysis_v2/selection_rules/`.
 
 ## Design
 

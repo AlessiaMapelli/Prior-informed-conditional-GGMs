@@ -230,10 +230,17 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
 3. Keep the hyperparameter grid α {0.5, 0.75, 0.9, 0.99} × ϑ {0.8, 1, 1.1, 1.3}, with 50% random search, in the simulations.
 4. ~~`ebic_relaxed` is the default and the main rule of the paper~~ **Revised 2026-11-07:** `bic_relaxed` with AND symmetrisation is the default (template and package) and the main rule of the paper; OR also reported. Guideline: EBIC relaxed with OR for small samples (n ≈ 1000).
 
+## 10. Fix of `.gitignore` (2026-11-25)
+
+- **The bug:** in `e3784c2` the new line `Computational_templates/Temp_internal/` was appended without a newline to the line that ignores the paper PDF. Both rules were therefore broken, and `e3784c2` committed `Prior_informed_..._reconstruction.pdf`.
+- **The fix:** the newline is restored. The PDF and the two files in `Computational_templates/Temp_internal/` (tracked since `4cfcecd`) are removed from the index with `git rm --cached`; they stay on disk.
+- **What remains:** the PDF is still in the history of `e3784c2` on `origin/dev`. Removing it from the history would need a rewrite and a force push (not done).
+- `Simulation_analysis_v2/README.md` and `Add_simulation_analysis/README.md`: the introductions now use the new folder names (`Preprint_simulation_analysis/`, formerly `Simulation_analysis/`; no `code/` copies).
+
 ## Open points
 
 - Commit plan: branch name. Settled: `Add_simulation_analysis/` and `Simulation_analysis_v2/` code tracked, outputs ignored; `.DS_Store` not committed.
-- Do not push README/installation changes before CRAN accepts 0.1.0.
+- Do not push the root README/installation changes before CRAN accepts 0.2.0 (0.1.0 accepted 2026-11-17; 0.2.0 to be submitted mid-December 2026). The new root `README.md` (title "prCGGM: ...", folder map, paper items, prCGGM ≥ 0.2.0) was written on 2026-11-25 and is kept uncommitted until then.
 - Default grids: aligned with the simulations in the template and the package (5b, decided 2026-11-06).
 - Rerun T2D with the new default (plan step 5): to be decided.
 - `.DS_Store` is modified; it is not to be committed (decided 2026-11-06).
