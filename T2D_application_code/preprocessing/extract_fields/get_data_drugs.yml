@@ -1,0 +1,167 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "GP-P" # choose which data source to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 #  HESIN -> HES records - HES inpatient core dataset
+                 #  HESIN-DIAG -> HES records - Diagnosis codes recorded in an inpatient admission
+                 #  OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 #  OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 #  PPP -> Olink proteomics data
+fids:
+  - Glimepiride
+  - Amaryl
+  - Niddaryl
+  - Acetohexamide
+  - Dimelor
+  - Chlorpropamide
+  - Diabinese
+  - Glymese
+  - Gx Chlorpropamide
+  - Melitase
+  - Apo-Chlorpropamide
+  - Diabemide
+  - Glibenclamide
+  - Daonil
+  - Euglucon
+  - Libanil
+  - Malix
+  - Gx Glibenclamide
+  - Lederglib
+  - Calabren
+  - Abbenclamide
+  - Diabetamide
+  - Gliken
+  - Grenamide
+  - Glibornuride
+  - Glutril
+  - Gliclazide
+  - Diamicron
+  - Diaglyk
+  - Vivazide
+  - Glimil
+  - Nazdol
+  - Edicil
+  - Dacadis
+  - Zicron
+  - Vitile
+  - Laaglyda M/R
+  - Ziclaseg
+  - Vamju
+  - Bilxona
+  - Glipizide
+  - Glibenese
+  - Minodiab
+  - Gliquidone
+  - Glurenorm
+  - Glymidine
+  - Gondafon
+  - Redul
+  - Tolazamide
+  - Tolanase
+  - Tolbutamide
+  - Glyconon
+  - Pyramidex
+  - Rastinon
+  - Metformin HCl
+  - Glucophage
+  - Orabet
+  - Glyformin
+  - Ledermetin
+  - Glucamet
+  - Milform
+  - Metsol
+  - Bolamyn
+  - Metabet
+  - Glucient SR
+  - Diagemet XL
+  - Sukkarto SR
+  - Meijumet
+  - Yaltormin
+  - Metuxtan SR
+  - Phenformin HCl
+  - Dibotin S.R.
+  - Acarbose
+  - Glucobay
+  - Vildagliptin
+  - Galvus
+  - Liraglutide
+  - Victoza
+  - Saxenda
+  - Saxagliptin
+  - Onglyza
+  - Janumet
+  - Linagliptin
+  - Trajenta
+  - Linagliptin
+  - Metformin
+  - Jentadueto
+  - Dapagliflozin
+  - Forxiga
+  - Saxagliptin
+  - Komboglyze
+  - Lixisenatide
+  - Lyxumia
+  - Alogliptin
+  - Vipdomet
+  - Alogliptin
+  - Vipidia
+  - Dapagliflozin
+  - Xigduo
+  - Canagliflozin
+  - Invokana
+  - Empagliflozin
+  - Jardiance
+  - Canagliflozin
+  - Vokanamet
+  - Dulaglutide
+  - Trulicity
+  - Empagliflozin
+  - Synjardy
+  - Albiglutide
+  - Eperzan
+  - Ins Degludec
+  - Liraglutide
+  - Xultophy
+  - Saxagliptin
+  - Dapagliflozin
+  - Qtern
+  - Semaglutide
+  - Ozempic
+  - Ertugliflozin
+  - Steglatro
+  - Pioglitazone HCl
+  - Actos
+  - Glizofar
+  - Glidipion
+  - Diabiom
+  - Guar Gum
+  - Glucotard
+  - Guarem
+  - Guarina
+  - Lejguar
+  - Miglitol
+  - Repaglinide
+  - NovoNorm
+  - Prandin
+  - Enyglid
+  - Rosiglitazone
+  - Avandia
+  - Troglitazone
+  - Romozin
+  - Nateglinide
+  - Starlix
+  - Rosiglitazone
+  - Avandamet
+  - Pioglitazone
+  - Competact
+  - Sitagliptin
+  - Januvia
+  - Exenatide
+  - Byetta
+  - Bydureon
+  - Vildagliptin
+  - Eucreas
+
+
+output: "<UKB_WORK_DIR>/gpp_drugs_antidiabetics_AM.tsv"   # replace with your output folder

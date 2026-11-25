@@ -38,6 +38,9 @@ library(foreach)
 #' @param symm_method Method for symmetrization of the estimated precision matrix - Character; "AND" or "OR" (default "AND")
 #' @param verbose Logical indicating whether to print detailed progress messages during estimation - Logical; default FALSE
 #' @param lambda_prec_type Deprecated, use 'selection'. "min" or "1se" are mapped to selection = "cv_min" or "cv_1se" (default NULL)
+#' @param prior_on_covariates TEMPLATE ONLY (not in the prCGGM package). If TRUE the prior weights (1 - W) also multiply the penalty of the covariate-specific terms (covariate h x node k gets theta * (1 - W_jk)); used only for the ablation of the selective prior in the paper (Supplementary), where it damages the covariate-specific networks - Logical; default FALSE (prior on the baseline only, as in prCGGM)
+#' @param post_filter TEMPLATE ONLY (not in the prCGGM package). Post-selection filter applied to the symmetrised networks of every component - Character; "none" (default), "pcor" (keep the edges with absolute partial correlation -delta_jk * sigma_j * sigma_k above post_control$pcor_threshold) or "backbone" (disparity-filter backbone of Serrano et al., 2009, on |delta|, Benjamini-Hochberg at level post_control$backbone_alpha). Used in the paper's comparison of selection rules (Supplementary), where they are applied to the selection = "cv_min" networks. See post_filter_networks()
+#' @param post_control List of settings of the post-selection filters: pcor_threshold (default 0.05), backbone_alpha (default 0.05) - List; default list()
 #'
 #' @return A list containing:
 #'   \item{results}{A list with elements:}
@@ -108,6 +111,7 @@ GGReg_full_estimation <- function(
   selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
+  prior_on_covariates = FALSE,
   tune_hyperparams = TRUE,
   asparse_grid = c(0.75, 0.5, 0.9, 0.99),
   weight_grid = c(1.0, 0.8, 1.1, 1.3),
@@ -120,8 +124,11 @@ GGReg_full_estimation <- function(
   name_output = "ggReg_result",
   symm_method ="AND",
   verbose = FALSE,
-  lambda_prec_type = NULL) 
+  lambda_prec_type = NULL,
+  post_filter = "none",
+  post_control = list()) 
 {
+  post_filter <- match.arg(post_filter, c("none", "pcor", "backbone"))
   if (!is.null(lambda_prec_type)) {
     # Deprecated: earlier versions selected lambda by cross-validation only
     warning("'lambda_prec_type' is deprecated; use selection = \"cv_min\" or \"cv_1se\".")
@@ -170,6 +177,7 @@ GGReg_full_estimation <- function(
       selection = selection,
       refit = refit,
       selection_control = selection_control,
+      prior_on_covariates = prior_on_covariates,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -198,6 +206,7 @@ GGReg_full_estimation <- function(
       selection = selection,
       refit = refit,
       selection_control = selection_control,
+      prior_on_covariates = prior_on_covariates,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -223,6 +232,7 @@ GGReg_full_estimation <- function(
       selection = selection,
       refit = refit,
       selection_control = selection_control,
+      prior_on_covariates = prior_on_covariates,
       tune_hyperparams = tune_hyperparams,
       asparse_grid = asparse_grid,
       weight_grid = weight_grid,
@@ -238,6 +248,15 @@ GGReg_full_estimation <- function(
   if (verbose) {
     cat("Done estimating the precision matrix\n")
     cat("=== GGReg Full Estimation Complete ===\n")
+  }
+  if (post_filter != "none") {
+    # Template-only post-selection filter (see post_filter_networks())
+    filtered <- post_filter_networks(res_cov_reg$Dic_Delta_hat, res_cov_reg$Sigma_hat,
+                                     method = post_filter, post_control = post_control,
+                                     Dic_adj_matrics = res_cov_reg$Dic_adj_matrics)
+    res_cov_reg$Dic_Delta_hat <- filtered$Dic_Delta_hat
+    res_cov_reg$Dic_adj_matrics <- filtered$Dic_adj_matrics
+    if (verbose) cat("Post-selection filter:", post_filter, "\n")
   }
   if(mean_estimation){
     results <- list(
@@ -577,6 +596,7 @@ GGReg_cov_estimation_SLURM <- function(
   selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
+  prior_on_covariates = FALSE,
   tune_hyperparams = TRUE,
   asparse_grid = c(0.75, 0.5, 0.9, 0.99),
   weight_grid = c(1.0, 0.8, 1.1, 1.3),
@@ -603,7 +623,7 @@ GGReg_cov_estimation_SLURM <- function(
   }
   # Save all input data for each SLURM jobs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control, prior_on_covariates,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   if (verbose) {
@@ -691,6 +711,7 @@ GGReg_cov_estimation_sequential <- function(
   selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
+  prior_on_covariates = FALSE,
   tune_hyperparams = TRUE,
   asparse_grid = c(0.75, 0.5, 0.9, 0.99),
   weight_grid = c(1.0, 0.8, 1.1, 1.3),
@@ -717,7 +738,7 @@ GGReg_cov_estimation_sequential <- function(
   
   # Save all input data for individual node runs
   input_data_path <- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control, prior_on_covariates,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K, 
        file = input_data_path)
   
@@ -799,6 +820,7 @@ GGReg_cov_estimation_parallel <- function(
   selection = "bic_relaxed",
   refit = TRUE,
   selection_control = list(),
+  prior_on_covariates = FALSE,
   tune_hyperparams = TRUE,
   asparse_grid = c(0.75, 0.5, 0.9, 0.99),
   weight_grid = c(1.0, 0.8, 1.1, 1.3),
@@ -828,7 +850,7 @@ GGReg_cov_estimation_parallel <- function(
   
   # Save all input data for individual node runs
   input_data_path <<- paste0(output_path, "input_data_nodes.rda")
-  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control,
+  save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit, selection_control, prior_on_covariates,
        tune_hyperparams, asparse_grid, weight_grid, random_hyper_search, p.rand.hyper, K,
        file = input_data_path)
   
@@ -1535,6 +1557,80 @@ build_delta_dictionary <- function(
     Dic_Delta_hat[[key]] <- sim_value
   }
   return(Dic_Delta_hat)
+}
+
+#################################################
+## Post-selection filters (TEMPLATE ONLY, not in the prCGGM package)
+#################################################
+
+#' disparity_backbone
+#'
+#' Disparity-filter backbone (Serrano et al., 2009) of a weighted network. The
+#' weight of edge (i, j) is |A_ij|; for node i with degree k_i > 1 and strength
+#' s_i the p-value of the edge is (1 - w_ij / s_i)^(k_i - 1). An edge is kept
+#' when the smaller of its two p-values is significant after Benjamini-Hochberg
+#' correction over all edges.
+#'
+#' @param A Symmetric matrix (e.g. a component of Dic_Delta_hat)
+#' @param alpha Significance level (default 0.05)
+#' @return A with the non-significant edges set to 0
+disparity_backbone <- function(A, alpha = 0.05) {
+  W <- abs(A); diag(W) <- 0
+  k <- rowSums(W > 0); s <- rowSums(W)
+  pv <- matrix(1, nrow(W), ncol(W))
+  for (i in which(k > 1)) {
+    j <- which(W[i, ] > 0)
+    pv[i, j] <- (1 - W[i, j] / s[i])^(k[i] - 1)
+  }
+  pmin_edge <- pmin(pv, t(pv))
+  ut <- upper.tri(W) & W > 0
+  keep <- matrix(FALSE, nrow(W), ncol(W))
+  if (any(ut)) keep[ut] <- p.adjust(pmin_edge[ut], method = "BH") < alpha
+  keep <- keep | t(keep)
+  A * keep
+}
+
+#' partial_correlation
+#'
+#' Partial-correlation scale of a symmetric precision-scale matrix given the
+#' node-wise residual variances: rho_jk = -delta_jk * sigma_j * sigma_k.
+#'
+#' @param D Symmetric matrix of precision-scale coefficients (delta)
+#' @param sigma2 Vector of residual variances (Sigma_hat)
+#' @return Matrix of partial correlations
+partial_correlation <- function(D, sigma2) {
+  -D * sqrt(outer(sigma2, sigma2))
+}
+
+#' post_filter_networks
+#'
+#' TEMPLATE ONLY. Applies a post-selection filter to every component of the
+#' symmetrised networks. The filter is computed on the precision-scale
+#' matrices (Dic_Delta_hat) and the same edges are removed from the adjacency
+#' matrices (Dic_adj_matrics) when given.
+#'
+#' @param Dic_Delta_hat List of symmetric precision-scale matrices (one per component)
+#' @param Sigma_hat Vector of node residual variances
+#' @param method "pcor" or "backbone"
+#' @param post_control List: pcor_threshold (default 0.05), backbone_alpha (default 0.05)
+#' @param Dic_adj_matrics Optional list of adjacency matrices to filter in the same way
+#' @return A list with the filtered Dic_Delta_hat and Dic_adj_matrics
+post_filter_networks <- function(Dic_Delta_hat, Sigma_hat, method = c("pcor", "backbone"),
+                                 post_control = list(), Dic_adj_matrics = NULL) {
+  method <- match.arg(method)
+  ctrl <- utils::modifyList(list(pcor_threshold = 0.05, backbone_alpha = 0.05), post_control)
+  unknown <- setdiff(names(post_control), c("pcor_threshold", "backbone_alpha"))
+  if (length(unknown)) stop("Unknown post_control setting(s): ", paste(unknown, collapse = ", "))
+  out_D <- lapply(Dic_Delta_hat, function(D) {
+    if (method == "backbone") disparity_backbone(D, ctrl$backbone_alpha)
+    else D * (abs(partial_correlation(D, Sigma_hat)) > ctrl$pcor_threshold)
+  })
+  out_A <- NULL
+  if (!is.null(Dic_adj_matrics)) {
+    out_A <- Dic_adj_matrics
+    for (k in intersect(names(out_D), names(out_A))) out_A[[k]] <- out_A[[k]] * (out_D[[k]] != 0)
+  }
+  list(Dic_Delta_hat = out_D, Dic_adj_matrics = out_A)
 }
 
 #################################################

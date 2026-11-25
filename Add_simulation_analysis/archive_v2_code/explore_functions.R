@@ -16,7 +16,7 @@
 # the networks in evaluate_setting().
 #
 # The design matrix, penalty factors, hyperparameter grid and random search
-# mirror GGReg_cov_single_node_processing() in code/ggReg_main_functions.R.
+# mirror GGReg_cov_single_node_processing() in Computational_templates/ggReg_main_functions.R.
 
 suppressPackageStartupMessages({
   library(sparsegl)
@@ -27,27 +27,35 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
-#' Load the functions of the original code needed here, without running the
-#' library() calls of the original files (some packages are not needed).
+#' Load the functions needed here from the single template and from the
+#' preprint simulation code (updated 2026-11-25: these were copies in code/,
+#' identical to the files loaded now), without running their library() calls.
 #'
-#' @param code_dir Directory with the copies of Sim_functions.R and
-#'   ggReg_main_functions.R
+#' @param template Path of Computational_templates/ggReg_main_functions.R
+#' @param sim_functions Path of Preprint_simulation_analysis/Sim_functions.R
 #' @return Invisibly, the names of the loaded functions
-load_original_functions <- function(code_dir) {
+load_original_functions <- function(
+    template = "../Computational_templates/ggReg_main_functions.R",
+    sim_functions = "../Preprint_simulation_analysis/Sim_functions.R") {
   wanted <- list(
-    "Sim_functions.R" = c("generate_network_structure", "generate_mean_effects",
-                          "generate_prior_knowledge", "simulate_subject_data_robust",
-                          "generate_simulation_dataset", "calculate_binary_metrics",
-                          "calculate_frobenius_error", "calculate_magnitude_preserved",
-                          "evaluate_estimation"),
-    "ggReg_main_functions.R" = c("build_delta_dictionary"))
+    c("generate_network_structure", "generate_mean_effects",
+      "generate_prior_knowledge", "simulate_subject_data_robust",
+      "generate_simulation_dataset", "calculate_binary_metrics",
+      "calculate_frobenius_error", "calculate_magnitude_preserved",
+      "evaluate_estimation"),
+    c("build_delta_dictionary", "disparity_backbone", "partial_correlation"))
+  names(wanted) <- c(sim_functions, template)
   for (f in names(wanted)) {
-    for (e in parse(file.path(code_dir, f))) {
+    found <- character(0)
+    for (e in parse(f)) {
       if (is.call(e) && identical(e[[1]], as.name("<-")) &&
           as.character(e[[2]]) %in% wanted[[f]]) {
         eval(e, envir = globalenv())
+        found <- c(found, as.character(e[[2]]))
       }
     }
+    missing <- setdiff(wanted[[f]], found)
+    if (length(missing)) stop("Not found in ", f, ": ", paste(missing, collapse = ", "))
   }
   invisible(unlist(wanted))
 }
@@ -363,30 +371,8 @@ assemble_networks <- function(nodes, inp, coef_fun, symm) {
        coef = build_delta_dictionary(Bm, groups, U_names, symm))
 }
 
-#' Disparity-filter backbone (Serrano et al., 2009) of a weighted network, as
-#' in the T2D report (alpha = 0.05, Benjamini-Hochberg). An edge is kept when
-#' it is significant for at least one of its two endpoints.
-disparity_backbone <- function(A, alpha = 0.05) {
-  W <- abs(A); diag(W) <- 0
-  k <- rowSums(W > 0); s <- rowSums(W)
-  pv <- matrix(1, nrow(W), ncol(W))
-  for (i in which(k > 1)) {
-    j <- which(W[i, ] > 0)
-    pv[i, j] <- (1 - W[i, j] / s[i])^(k[i] - 1)
-  }
-  pmin_edge <- pmin(pv, t(pv))
-  ut <- upper.tri(W) & W > 0
-  keep <- matrix(FALSE, nrow(W), ncol(W))
-  if (any(ut)) keep[ut] <- p.adjust(pmin_edge[ut], method = "BH") < alpha
-  keep <- keep | t(keep)
-  A * keep
-}
-
-#' Partial-correlation scale of a symmetric delta matrix, given the node
-#' residual variances: rho_jk = -delta_jk * sigma_j * sigma_k
-partial_correlation <- function(D, sigma2) {
-  -D * sqrt(outer(sigma2, sigma2))
-}
+# disparity_backbone() and partial_correlation() come from the template
+# (see load_original_functions()).
 
 #' Evaluate all rules on one simulated dataset
 #'

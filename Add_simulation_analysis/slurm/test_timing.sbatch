@@ -26,7 +26,7 @@ source /center/healthds/singularity_functions
 
 for N in $SIZES; do
   echo "=== n=$N, $SLURM_CPUS_PER_TASK cores ($(hostname))"
-  time Rscript --vanilla run_setting.R --n "$N" --rep 1 --p 100 --prior noisy \
+  time Rscript --vanilla archive_v2_code/run_setting.R --n "$N" --rep 1 --p 100 --prior noisy \
     --ncores "$SLURM_CPUS_PER_TASK" --nodes "1-$SLURM_CPUS_PER_TASK" --stab_B 50 \
     --out results_test
 done

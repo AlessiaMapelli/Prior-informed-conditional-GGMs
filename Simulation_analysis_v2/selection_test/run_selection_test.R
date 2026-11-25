@@ -36,7 +36,7 @@ for (v in c("n", "p", "q", "rep", "ncores", "stab")) opt[[v]] <- as.integer(opt[
 if (is.na(opt$ncores)) opt$ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", parallel::detectCores()))
 
 suppressPackageStartupMessages({library(sparsegl); library(glmnet)})
-source("ggReg_main_functions.R")
+source("../Computational_templates/ggReg_main_functions.R")  # single template copy
 source("R/sim_design.R")
 
 task <- sprintf("n%d_p%d_q%d", opt$n, opt$p, opt$q)

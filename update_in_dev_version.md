@@ -7,7 +7,7 @@ This file tracks every change made to the repository since the last commit on `m
 - **Status:** committed and pushed on branch `dev` (2026-11-06). The matching package changes are on the package branch `v.0.2` (see `Rpackages/prCGGM/update_in_dev_version.md`).
 - **Detail:** the READMEs referenced below hold the full findings, tables and run logs.
 
-Last updated: 2026-11-07. Changes of 2026-11-07 (5c and the related README updates) committed on `dev`.
+Last updated: 2026-11-25. Changes of 2026-11-07 (5c and the related README updates) committed on `dev`.
 
 ---
 
@@ -188,6 +188,29 @@ File: `Computational_templates/ggReg_main_functions.R`. A copy is in `Simulation
 - **Git (2026-11-06):** code and `README.md` tracked; `results*/` (incl. `results_bic_penalised/`, `results_timing/`), `logs/` and `selection_test/results*/` ignored (`.gitignore`).
 
 ---
+
+## 9. Repository reorganisation for the revised paper (2026-11-25)
+
+- **Commit `042e1be`:**
+  - renames `Simulation_analysis/` → `Preprint_simulation_analysis/` and `T2D_application_code/` → `Preprint_T2D_application_code/` (preprint code, unchanged);
+  - reproducibility and ablation experiments; `paper_figures.R`.
+- **Single template:**
+  - `Computational_templates/ggReg_main_functions.R` is the only copy;
+  - it is sourced by `Simulation_analysis_v2/` (`run_task.R`, `run_repro_task.R`, `selection_test/run_selection_test.R`) and by `Add_simulation_analysis/archive_v2_code/`;
+  - the copies in `Simulation_analysis_v2/` and `Add_simulation_analysis/code/` were removed (identical).
+- **Template-only options** (not in the prCGGM package; listed in `Computational_templates/README.md`, "Template and package"):
+  - `post_filter = "pcor"` / `"backbone"` with `post_control` (`post_filter_networks()`, `disparity_backbone()`, `partial_correlation()`; post-selection filters of the selection-rules comparison);
+  - `prior_on_covariates` (ablation of the selective prior; now also an argument of `GGReg_full_estimation()`).
+- **Template vs package:** `Computational_templates/check_template_vs_package.R`, run against prCGGM v0.2 (`e408e8d`):
+  - all deterministic rules (bic_relaxed, ebic_relaxed, bic, ebic, cv_min, cv_1se; AND and OR) give the same networks to about 1e-16;
+  - stability_bic differs only through the random subsamples (one edge with OR).
+- **Part 1 (selection rules):** moved to `Simulation_analysis_v2/selection_rules/`, including `results_v3/` (ignored). Rerunning n = 1000, rep 1 with the moved code reproduced the saved evaluation exactly (56/56 rows).
+- **`Simulation_analysis_v2/README_run_simulation.md`:** paper item → script → cluster job → summaries → figure, seeds, software.
+- **`T2D_application_code/` (new, public):** code of the revised T2D application (10-year primary, 5-year sensitivity):
+  - preprocessing (UK Biobank field lists, phenotype and cohort derivation, STRING prior), network fit, permutation null, downstream analyses and prediction, README;
+  - paths come from environment variables, and the code runs against the private `T2D_application_prot/`;
+  - a local `.gitignore` blocks data files;
+  - run against the private folder, it reproduced the saved downstream tables byte for byte.
 
 ## Verification
 

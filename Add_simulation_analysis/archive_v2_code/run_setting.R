@@ -2,7 +2,7 @@
 ## Run one simulation setting (sample size x replication)
 #################################################
 # Usage (from the Add_simulation_analysis folder):
-#   Rscript run_setting.R --n 5000 --rep 1 [--p 100] [--prior noisy]
+#   Rscript archive_v2_code/run_setting.R --n 5000 --rep 1 [--p 100] [--prior noisy]
 #                         [--ncores 16] [--nodes all|1-16] [--stab_B 50]
 #                         [--out results]
 # The node regressions run in parallel over --ncores cores (forked workers).
@@ -26,8 +26,8 @@ parse_range <- function(x, p) {
   if (length(r) == 1) r else seq(r[1], min(r[2], p))
 }
 
-source("R/explore_functions.R")
-load_original_functions("code")
+source("archive_v2_code/explore_functions.R")
+load_original_functions()  # single template + preprint Sim_functions.R
 
 setting_dir <- file.path(opt$out, sprintf("n%d_p%d_%s", opt$n, opt$p, opt$prior),
                          paste0("rep", opt$rep))

@@ -1,0 +1,23 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "MD" # choose which data source to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 # OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 # OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 # PPP -> Olink proteomics data
+fids:
+  - 74         # Fasting time
+  - 3166       # Time blood sample collected
+  - 137        # Number of treatments/medications taken
+  - 21021      # Pulse wave Arterial Stiffness index
+  - 4195       # Pulse wave reflection index
+  - 22425      # Cardiac index
+
+tweaks:
+  # Rename columns using the data field name; values: True or False; valid for MD datasource only
+  humanise_column_names: True
+  # Keep columns with at least this percentage of not-NA, values: between 0 and 1; valid for MD datasource only
+  humanise_thresh_notna: 0
+
+output: "<UKB_WORK_DIR>/md_additional_info_AM.tsv"   # replace with your output folder

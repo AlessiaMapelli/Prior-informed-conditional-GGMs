@@ -1,0 +1,156 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "GP-P" # choose which data source to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 #  HESIN -> HES records - HES inpatient core dataset
+                 #  HESIN-DIAG -> HES records - Diagnosis codes recorded in an inpatient admission
+                 #  OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 #  OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 #  PPP -> Olink proteomics data
+fids:
+  - Amisulpride
+  - Solian
+  - Abilify
+  - Abilify Maintena
+  - Aripiprazole
+  - Anquil
+  - Benperidol
+  - Benquil
+  - Bromperidol
+  - Impromen
+  - Cariprazine
+  - Reagila
+  - Chloractil
+  - Chlorazine
+  - Chlorpromazine HCl
+  - Largactil
+  - Rimazine
+  - Chlorprothixene
+  - Taractan
+  - Truxal
+  - Clotiapine
+  - Clozapine
+  - Clozaril
+  - Denzapine
+  - Zaponex
+  - Droleptan
+  - Droperidol
+  - Depixol (Parent)
+  - Flupentixol Decan
+  - Psytixol
+  - Depixol (Systemic)
+  - Flupentixol HCl (Antipsychotic)
+  - Decazate
+  - Fluphenazine Decan
+  - Modecate
+  - Fluphenazine Enantate
+  - Moditen Enantate
+  - Fluphenazine HCl
+  - Moditen
+  - Fluspirilene
+  - Imap
+  - Redeptin
+  - Dolpin
+  - Dozic
+  - Fortunan
+  - Haldol
+  - Halkid
+  - Haloperidol
+  - Kentace
+  - Serenace
+  - Haldol Decan
+  - Haloperidol Decan
+  - Levomeprom HCl
+  - Nozinan (Parent)
+  - Levinan
+  - Levomeprom Mal
+  - Nozinan (Systemic)
+  - Veractil
+  - Loxapac
+  - Loxapine Succ
+  - Latuda
+  - Lurasidone
+  - Melperone HCl
+  - Arkolamyl
+  - Olanzapine
+  - Zalasta
+  - Zyprexa
+  - Olanzapine Embonate
+  - Zypadhera
+  - Integrin
+  - Oxypertine
+  - Invega
+  - Paliperidone
+  - Paliperidone (Inj)
+  - Trevicta
+  - Xeplion
+  - Neulactil
+  - Pericyazine
+  - Fentazin
+  - Perphenazine
+  - Orap
+  - Pimozide
+  - Piportil Depot
+  - Pipotiazine Palm
+  - Prazine
+  - Promazine HCl
+  - Protactyl
+  - Sparine
+  - Dominal
+  - Prothipendyl HCl
+  - Atrolak XL
+  - Biquelle XL
+  - Brancico XL
+  - Ebesque XL
+  - Mintreleq XL
+  - Psyquet XL
+  - Quetiapine
+  - Seotiapim XL
+  - Seroquel
+  - Sondate
+  - Tenprolide XL
+  - Zaluron XL
+  - Remoxipride HCl
+  - Roxiam
+  - Risperdal
+  - Risperdal Consta
+  - Risperidone (Parent)
+  - Risperidone (Systemic)
+  - Serdolect
+  - Sertindole
+  - Dolmatil
+  - Sulparex
+  - Sulpiride
+  - Sulpitil
+  - Sulpor
+  - Dartalan
+  - Thiopropazate HCl
+  - Melleril
+  - Rideril
+  - Thioridazine
+  - Navane
+  - Orbinamon
+  - Tiotixene
+  - Amylozine
+  - Stelazine
+  - Terrazine
+  - Trifluoperazine
+  - Trifluperidol
+  - Triperidol
+  - Agreal
+  - Veralipride
+  - Zeldox
+  - Ziprasidone HCl
+  - Zoleptil
+  - Zotepine
+  - Clopixol Acuphase
+  - Zuclopenth Acet
+  - Clopixol (Parent)
+  - Zuclopenth Decan
+  - Ciatyl-Z
+  - Clopixol (Systemic)
+  - Zuclopenth HCl
+
+
+output: "<UKB_WORK_DIR>/gpp_drugs_antipsycotic_AM.tsv"   # replace with your output folder

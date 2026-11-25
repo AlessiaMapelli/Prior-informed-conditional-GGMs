@@ -1,0 +1,46 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "MD" # choose which data source to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 # OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 # OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 # PPP -> Olink proteomics data
+fids:
+  - 21000      # Etnic_group
+  - 20116      # Smoking status
+  - 20117      # Alcohol drinker status
+  - 1558       # Alcohol intake frequency
+  - 21001      # BMI
+  - 22009      # Genetic principal components
+  - 74         # Fasting time
+  - 3166       # Time blood sample collected
+  - 23165      # Blood type
+  - 131350     # Atrial Fibrillation
+  - 131298     # Acute Myocardial Infarction
+  - 131300     # Subsequent Myocardial Infarction
+  - 131302     # Complication after acute myocardial infarction
+  - 131286     # Essential (primary) hypertension
+  - 130792     # Obesity
+  - 23099      # Body fat percentage
+  - 21088      # Liver fat fraction PDFF
+  - 22434      # Abdominal fat ratio
+  - 23100      # Whole body fat mass
+  - 21090      # Pancreas PDFF (fat fraction)
+  - 21087      # Pancreas volume
+  - 30750      # Glycated haemoglobin (HbA1c)
+  - 30700      # Creatinine
+  - 30500      # Microalbumin in urine
+  - 6033       # Maximum heart rate during fitness test
+  - 904        # Number of days/week of vigorous physical activity 10+ minutes
+  - 884        # Number of days/week of moderate physical activity 10+ minutes
+  - 49         # Hip circumference
+  #- 157        # Cardiac and aortic function
+
+tweaks:
+  # Rename columns using the data field name; values: True or False; valid for MD datasource only
+  humanise_column_names: True
+  # Keep columns with at least this percentage of not-NA, values: between 0 and 1; valid for MD datasource only
+  humanise_thresh_notna: 0
+
+output: "<UKB_WORK_DIR>/md_additional_info_AM.tsv"   # replace with your output folder

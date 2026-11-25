@@ -1,0 +1,20 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "GP-C" # Select the data source you want to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 #  HESIN -> HES records - HES inpatient core dataset
+                 #  HESIN-DIAG -> HES records - Diagnosis codes recorded in an inpatient admission
+                 #  OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 #  OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 #  PPP -> Olink proteomics data
+fids:
+  - 42W50   # get the glicated hemoglobin
+  - 42W51
+  - 66Ae0
+  - 42W4.
+  - 66Ae. 
+
+# Enter the path to your output file here, this is an option, or use the --output_file option of the extract command.
+# If both are set, cli takes precedence.
+output: "<UKB_WORK_DIR>/gpc_hba1c_info_AM.tsv"   # replace with your output folder

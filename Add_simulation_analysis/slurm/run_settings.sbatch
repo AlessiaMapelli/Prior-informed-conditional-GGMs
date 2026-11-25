@@ -36,6 +36,6 @@ export LC_ALL=C.UTF-8   # avoids the LC_CTYPE warning on the nodes
 source /center/healthds/singularity_functions
 
 echo "Task $SLURM_ARRAY_TASK_ID: n=$N rep=$REP on $SLURM_CPUS_PER_TASK cores ($(hostname))"
-Rscript --vanilla run_setting.R --n "$N" --rep "$REP" --p 100 --prior noisy \
+Rscript --vanilla archive_v2_code/run_setting.R --n "$N" --rep "$REP" --p 100 --prior noisy \
   --ncores "$SLURM_CPUS_PER_TASK" --stab_B 50 --out results_v2
 echo "Task $SLURM_ARRAY_TASK_ID completed"

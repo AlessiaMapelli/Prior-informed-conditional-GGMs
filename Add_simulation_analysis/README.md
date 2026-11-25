@@ -146,16 +146,14 @@ The published method (and the current template) corresponds to **CV lambda.min w
 
 | File | Content |
 |---|---|
-| `code/` | Unmodified copies of `Sim_functions.R`, `ggReg_main_functions.R` and the original job scripts |
-| `R/explore_functions.R` | Data generation wrapper, node exploration under all rules, assembly and evaluation |
-| `run_setting.R` | Runs one setting (n, replication) with the nodes in parallel; saves each node as soon as it is done, then evaluates |
+| `archive_v2_code/explore_functions.R`, `archive_v2_code/run_setting.R` | The code of the v2 run (`results_v2/`): data generation wrapper, node exploration under all rules, assembly and evaluation; one setting per call |
 | `slurm/settings.csv` | The 20 settings (n × replication), largest n first |
 | `slurm/test_timing.sbatch` | Timing test: one node per core for each sample size |
 | `slurm/run_settings.sbatch` | Array job, one task per setting, 16 cores per task |
 | `analyse_results.R` | Tables and figures in `results/summary/` (v1/v2 runs) |
-| `slurm/settings_v3.csv`, `slurm/run_settings_v3.sbatch` | The 400 settings of the 100-replication run (v3) and its array job |
-| `analyse_results_v3.R` | Tables (mean (SD) over replications) and boxplots of the v3 run in `results_v3/summary/` |
 | `archive_v2_code/` | The code as used for `results_v2/` (before the v3 changes) |
+
+**Moved 2026-11-25:** the v3 run (100 replications, Part 1 of the paper's Supplementary) is now in `../Simulation_analysis_v2/selection_rules/` (code, slurm files and `results_v3/`), because it is reported in the paper. `code/` (copies of the preprint `Sim_functions.R`, `ggReg_main_functions.R` and job scripts, identical to `../Preprint_simulation_analysis/`) was removed. The archived v2 code now loads `build_delta_dictionary()`, `disparity_backbone()` and `partial_correlation()` from the single template `../Computational_templates/ggReg_main_functions.R`, and the generator helpers from `../Preprint_simulation_analysis/Sim_functions.R`, all identical to the former copies.
 
 ## Running on the cluster
 
@@ -166,17 +164,11 @@ mkdir -p logs
 # 1. Timing test (8 cores, nodes 1-8, n = 1000, 5000, 20000; results_test/)
 sbatch slurm/test_timing.sbatch
 sacct -j <jobid> --format=JobID,Elapsed,TotalCPU,MaxRSS,ReqMem,AllocCPUS
-# 2. Full run (writes to results_v2/)
+# 2. Full run (writes to results_v2/; runs archive_v2_code/run_setting.R)
 sbatch --array=1-20%10 slurm/run_settings.sbatch
 # 3. Summaries
 Rscript analyse_results.R results_v2
-# v3: 100 replications (writes to results_v3/), then its summaries
-sbatch --array=1-400%20 slurm/run_settings_v3.sbatch
-# v3 second pass: stability selection at the BIC hyperparameters (no CV)
-sbatch --array=1-400%20 slurm/run_settings_v3_stab_bic.sbatch
-# v3 third pass: BIC / EBIC relaxed and stability at the relaxed-BIC hyperparameters
-sbatch --array=1-400%20 slurm/run_settings_v3_relaxed.sbatch
-Rscript analyse_results_v3.R results_v3
+# v3 (100 replications): see ../Simulation_analysis_v2/README_run_simulation.md, item D
 ```
 
 A task that runs out of time can be resubmitted with the same index (`sbatch --array=3 ...`), and the nodes already fitted are skipped. Packages needed: sparsegl, igraph, MASS, matrixcalc, reshape2, ggplot2, and dplyr/tidyr for the analysis.

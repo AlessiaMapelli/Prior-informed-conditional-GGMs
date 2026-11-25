@@ -14,8 +14,8 @@
 #   results/summary/computing_time.csv               main study, time per node
 #   results_ebic_relaxed/summary/metrics_by_replication.csv   n = 1000, EBIC relaxed
 #   results_stability/summary/metrics_by_replication.csv      stability pilot (optional)
-#   ../Add_simulation_analysis/results_v3/summary/overall_by_replication.csv  Part 1
-#   ../Add_simulation_analysis/results_v3/summary/metrics_by_replication.csv  Part 1
+#   selection_rules/results_v3/summary/overall_by_replication.csv  Part 1
+#   selection_rules/results_v3/summary/metrics_by_replication.csv  Part 1
 #   selection_test/results_100/summary/overall_metrics.csv    Part 2
 #
 # Outputs in out_dir (PDF for the paper, PNG for inspection):
@@ -207,7 +207,7 @@ cmp <- data.frame(q = cmp$q, p = cmp$p, n = cmp$n, P = cmp$P, component = cmp$ct
 write.csv(cmp, file.path(out_dir, "TableS_main_compact.csv"), row.names = FALSE)
 
 # S5: selection rules (Part 1: p = 100, q = 3, Noisy prior) -----------------
-p1_dir <- "../Add_simulation_analysis/results_v3/summary"
+p1_dir <- "selection_rules/results_v3/summary"
 rule_order <- c("CV lambda.min", "CV lambda.1se", "lambda.min + pcor threshold",
                 "lambda.min + backbone", "BIC (penalised RSS)", "EBIC (penalised RSS)",
                 "BIC relaxed", "EBIC relaxed",

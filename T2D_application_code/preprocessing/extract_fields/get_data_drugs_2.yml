@@ -1,0 +1,282 @@
+app_id: 000000    # replace with your UKB application ID
+datasource: "GP-P" # choose which data source to use:
+                 #  MD   -> Main Datasets
+                 #  GP-C -> Primary care data - clinical event records
+                 #  GP-P -> Primary care data - prescription records
+                 #  HESIN -> HES records - HES inpatient core dataset
+                 #  HESIN-DIAG -> HES records - Diagnosis codes recorded in an inpatient admission
+                 #  OMOP-measurement -> OMOP CDM clinical data - records of Measurements
+                 #  OMOP-observation -> OMOP CDM clinical data - clinical facts about a Person
+                 #  PPP -> Olink proteomics data
+fids:
+  - Beclomet Diprop (Inh)
+  - Becloforte
+  - Becotide
+  - Ventide
+  - Aerobec
+  - Beclazone
+  - Filair
+  - Becodisks
+  - Asmabec
+  - Qvar
+  - Beclotaide
+  - Pulvinal Beclometh
+  - Beclometasone Cyclocap
+  - Easyhaler (Beclomet)
+  - Clenil Modulite
+  - Fostair
+  - Fostair NEXThaler
+  - Kelhale
+  - Betameth Val (Inh)
+  - Bextasol
+  - Budesonide (Inh)
+  - Pulmicort
+  - Pulmaxan
+  - Symbicort
+  - Budesonide Cyclocap
+  - Novolizer
+  - Easyhaler (Budesonide)
+  - DuoResp Spiromax
+  - Fobumix
+  - Fluticasone Prop (Inh)
+  - Flixotide
+  - Seretide
+  - Flutiform
+  - Sirdupla
+  - AirFluSal
+  - Aerivio Spiromax
+  - Sereflo
+  - Aloflute
+  - Fusacomb Easyhaler
+  - Combisal
+  - Mometasone Fur (Inh)
+  - Asmanex
+  - Triamcinol Aceton (Inh)
+  - Azmacort
+  - Ciclesonide
+  - Alvesco
+  - Fluticasone Fur (Inh)
+  - Relvar Ellipta
+  - Trelegy Ellipta
+  - Desoxycort Pivalate
+  - Percorten M
+  - Fludrocort Acet
+  - Florinef
+  - Dilacort (Crescent Pharma Ltd)
+  - Advantan
+  - Alkindi
+  - Altim
+  - Betameth
+  - Betameth Sod Phos (Systemic)
+  - Betameth Val (Systemic)
+  - Betnelan
+  - Betnesol (Systemic)
+  - Calcort
+  - Codelsol
+  - Cortancyl
+  - Cortate
+  - Cortef
+  - Cortelan
+  - Cortisone Acet
+  - Cortisone Acet Msd
+  - Cortistab
+  - Cortisyl
+  - Cortivazol
+  - Decadron
+  - Decortisyl
+  - Deflazacort
+  - Dekotil
+  - Delphicort
+  - Deltacortril
+  - Deltalone
+  - Deltastab (Systemic)
+  - Dexacortisyl
+  - Dexameth (Systemic)
+  - Dexameth Phos (Parent)
+  - Dexameth Sod Phos (Parent)
+  - Dexsol
+  - Dilacort (Auden McKenzie)
+  - Dilacort (Teva UK Ltd)
+  - Efcortelan (Parent)
+  - Efcortesol
+  - Eudragit-S
+  - Glensoludex
+  - Hcss
+  - Hydrocort (Systemic)
+  - Hydrocort Cipionate
+  - Hydrocort Sod Phos
+  - Hydrocort Sod Succ (Parent)
+  - Hydrocortistab (Systemic)
+  - Hydrocortone
+  - Kenalog (Glucocorticoid)
+  - Ledercort (Systemic)
+  - Lodotra
+  - Martapan
+  - Medrone (Systemic)
+  - Methylpred
+  - Methylpred Aceponate
+  - Methylpred Sod Succ
+  - Min-I-Mix
+  - Neofordex
+  - Oradexon
+  - Pevanti
+  - Plenadren
+  - Precortisyl
+  - Prednesol
+  - Prednisolone (Systemic)
+  - Prednisolone Dompe
+  - Prednisolone Sod Metsulfbenz
+  - Prednisolone Sod Phos (Systemic)
+  - Prednisolone Steaglate
+  - Prednisone
+  - Predocol
+  - Proprietary Co Prepn Bnf 0603020
+  - Sintisone
+  - Solu-Cortef
+  - Solu-Medrone
+  - Solupred
+  - Triamcinol
+  - Triamcinol Aceton (Glucocorticoid)
+  - Volon
+  - Zamene
+  - Generic Co Prepn Bnf 1304000
+  - Proprietary Co Prepn Bnf 1304000
+  - Neo-Medrone (Crm)
+  - Prednisolone Sod Phos (Top)
+  - Ulobetasol Prop
+  - Ultravate
+  - Fluprednidene Acet
+  - Acorvio (Corticosteroid)
+  - Alclometasone Diprop
+  - Modrasone
+  - Boots Derma Care Flare-Up
+  - Beclomet Diprop (Top)
+  - Propaderm
+  - Betameth Esters
+  - Diprosone
+  - Diprosalic
+  - Lotriderm
+  - Budesonide (Top)
+  - Preferid
+  - Betameth Val (Top)
+  - Betnovate (Top)
+  - Fucibet
+  - Betacap
+  - Bettamousse
+  - Betesil
+  - Audavate
+  - Xemacort
+  - Clobetasol Prop
+  - Dermovate
+  - Clarelux
+  - Etrivex
+  - ClobaDerm
+  - Clobet But (Top)
+  - Eumovate (Top)
+  - Trimovate
+  - Clobavate
+  - Desonide
+  - Tridesilon
+  - DesOwen
+  - Tridesonit
+  - Desoximetasone
+  - Stiedex
+  - Dexameth Sod Phos (Top)
+  - Diflucortolone Val
+  - Nerisone
+  - Temetex
+  - Fluclorolone Aceton
+  - Topilar
+  - Fluocinolone Aceton
+  - Synalar
+  - Synandone
+  - Fluocinonide
+  - Metosyn
+  - Hydrocort Sod Succ
+  - Fluocortolone
+  - Ultradil
+  - Ficoid 2
+  - Ultralanum
+  - Fluticasone Prop (Top)
+  - Cutivate
+  - Fludroxycortide
+  - Haelan
+  - Halcinonide
+  - Halciderm
+  - Hydrocort (Top)
+  - Dioderm
+  - Dome-Cort
+  - Efcortelan (Top)
+  - Hydrocortisyl
+  - Zenoxone
+  - HC45 (Top)
+  - Medicort
+  - Timocort
+  - Anflam
+  - Econacort
+  - Evacort
+  - Sarhydrocorde
+  - Dermacort
+  - Topisone
+  - Mildison Lipocream
+  - Kerfoot Hydrocort
+  - Sential HC
+  - Eurax-Hydrocort
+  - Eczederm + Hydrocort 0.5%
+  - Cobadex
+  - Alphaderm
+  - Calmurid HC
+  - Cortril
+  - Vioform-Hydrocort
+  - Timodine
+  - Terra-Cortril (Top)
+  - Steroxin-Hydrocort
+  - Quinocort
+  - Nystaform-HC
+  - Daktacort
+  - Canesten (Hydrocort)
+  - Nybadex
+  - Tri-Cicatrin
+  - Hydroderm
+  - Gregoderm
+  - Hydroderm HC
+  - Jungle For
+  - Dermaspray Demang
+  - Daktacort Hydrocort
+  - Lloyds Hydrocort
+  - Exe-Cort
+  - Derma Care Hydrocort
+  - Hydromol
+  - Galpharm (Hydrocort)
+  - Pinewood (Hydrocort)
+  - Boots (Hydrocort)
+  - Hydrocort But
+  - Locoid
+  - Hydrocort Acet (Top)
+  - Hydrocortistab
+  - Hydrocal
+  - Hepacort Plus
+  - Lanacort
+  - Epifoam
+  - Genticin HC
+  - Fucidin H
+  - Barquinol HC
+  - Gentisone HC (Top)
+  - Neo-Cortef (Top)
+  - Framycort (Top)
+  - HC45
+  - Boots Bite & Sting Relief (Hydrocort)
+  - Mometasone Fur (Top)
+  - Elocon
+  - Triamcinol Aceton (Top)
+  - Adcortyl (Top)
+  - Ledercort (Top)
+  - Nystadermal
+  - Aureocort
+  - Silderm
+  - Tri-Adcortyl (Top)
+  - Pevaryl T.C.
+  - Remiderm
+
+
+output: "<UKB_WORK_DIR>/gpp_drugs_corticosteroids_AM.tsv"   # replace with your output folder

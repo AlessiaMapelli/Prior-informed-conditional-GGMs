@@ -48,7 +48,7 @@ With a fixed probability, the covariate networks grow quadratically with p. At p
 - Binary covariates are passed to the template as factors (levels 0/1, dummy `x_1`); continuous ones are standardised by the template.
 
 ## Model fitting
-- **Code:** the template functions (`ggReg_main_functions.R`, a copy of `Computational_templates/ggReg_main_functions.R` after the step-4 update, see below): `GGReg_cov_single_node_processing()` for each node, run in parallel on the cores of the task, and `collect_node_results()` for the symmetrisation. Data are generated with mean zero and standardised, so the mean-estimation step is skipped (`mean_estimation = FALSE`).
+- **Code:** the template functions (`../Computational_templates/ggReg_main_functions.R`, sourced directly since 2026-11-25; before, an identical copy in this folder): `GGReg_cov_single_node_processing()` for each node, run in parallel on the cores of the task, and `collect_node_results()` for the symmetrisation. Data are generated with mean zero and standardised, so the mean-estimation step is skipped (`mean_estimation = FALSE`).
 - **[DECIDED 2026-11-04, REVISED 2026-11-06 and 2026-11-07] Selection rule:** `selection = "bic_relaxed"`: BIC on the RSS of the OLS refit of each support along the λ path, jointly with α and ϑ; AND is the main symmetrisation, OR also reported (the 2026-11-04 choice, BIC on the penalised RSS, over-selects as n grows; `ebic_relaxed` was the default on 2026-11-06–07, before the final decision; see "Decisions on the selection rule" below and `Add_simulation_analysis/README.md` §8). `run_task.R` defaults to it since 2026-11-07.
 - **Hyperparameter grid:** α ∈ {0.5, 0.75, 0.9, 0.99}, ϑ ∈ {0.8, 1, 1.1, 1.3}, with a 50% random search (8 of the 16 pairs per node, node-specific seed). The same grid is used with and without the prior (without a prior the baseline penalty factor is 1 and ϑ still scales the covariate terms), so the only difference between the three fits is the prior.
 - **[DECIDED 2026-11-04] OLS refit** of the selected predictors (`refit = TRUE`); edge weights on the precision scale, δ_jk = −β̂_jk/σ̂²_j.
@@ -125,7 +125,7 @@ Developed on a separate branch, so that `main` stays at the version submitted to
 
 | File | Content |
 |---|---|
-| `ggReg_main_functions.R` | Copy of the updated template |
+| `../Computational_templates/ggReg_main_functions.R` | The single template, sourced by every script of this folder (until 2026-11-25 a copy was kept here; identical, so no result changed) |
 | `R/sim_design.R` | `dataset_seed()`, `covariate_design()`, `simulate_dataset()`, `make_prior()`, `evaluate_networks()` |
 | `run_task.R` | One task: one dataset (n, p, q, rep), fitted under the three priors, evaluated with OR and AND |
 | `slurm/settings.csv` | The 3,200 tasks (4 n × 4 p × 2 q × 100 replications), ordered by p (500, 250, 100, 50), then n (largest first) |
@@ -239,7 +239,7 @@ Overall metrics (all components of a fit pooled: F1 and FPR from the summed TP /
 Then: rerun p = 50 / 100 with the new rule and submit p = 250 / 500. The p = 50 / 100 results fitted with BIC on the penalised RSS were moved to `results_bic_penalised/` (2026-11-06); the reruns write to `results/` (`run_task.R` defaults to `bic_relaxed` since 2026-11-07; OR and AND are both evaluated for every fit).
 
 ## Structure of the simulation results in the paper [DECIDED 2026-11-06]
-- **Supplementary Part 1 — selection rules** (`Add_simulation_analysis/results_v3`, 100 replications, p = 100, q = 3, noisy prior, n ∈ {1k, 5k, 10k, 20k}). Rules (all with OLS refit): CV lambda.min, CV lambda.1se, BIC and EBIC on the penalised RSS, BIC relaxed, EBIC relaxed, stability selection at the CV / BIC / BIC-relaxed hyperparameters, lambda.min + pcor threshold, lambda.min + backbone. Logic: (i) overall F1, FPR, Pearson pooled over all components, by n and OR/AND → choose the symmetrisation; (ii) per component (baseline, binary effect, continuous effect, null): density, TPR, FPR, precision, F1, Pearson/Spearman on true positives, Frobenius error, for the chosen symmetrisation; (iii) computing cost per rule; (iv) guidelines: BIC relaxed with AND (default, n ≥ 5000, best for binary effects), EBIC relaxed with OR for small n (confirmed 2026-11-07).
+- **Supplementary Part 1 — selection rules** (`selection_rules/results_v3`, moved from `Add_simulation_analysis/` on 2026-11-25, 100 replications, p = 100, q = 3, noisy prior, n ∈ {1k, 5k, 10k, 20k}). Rules (all with OLS refit): CV lambda.min, CV lambda.1se, BIC and EBIC on the penalised RSS, BIC relaxed, EBIC relaxed, stability selection at the CV / BIC / BIC-relaxed hyperparameters, lambda.min + pcor threshold, lambda.min + backbone. Logic: (i) overall F1, FPR, Pearson pooled over all components, by n and OR/AND → choose the symmetrisation; (ii) per component (baseline, binary effect, continuous effect, null): density, TPR, FPR, precision, F1, Pearson/Spearman on true positives, Frobenius error, for the chosen symmetrisation; (iii) computing cost per rule; (iv) guidelines: BIC relaxed with AND (default, n ≥ 5000, best for binary effects), EBIC relaxed with OR for small n (confirmed 2026-11-07).
 - **Supplementary Part 2 — robustness across priors and grid** (`selection_test/results_100`, 100 replications, p = 100, q = 3, the main-study datasets, three priors, n ∈ {1k, 5k, 10k, 20k}). BIC relaxed and EBIC relaxed (BIC on the penalised RSS kept as reference), current vs extended grid. Logic: both behave well across priors; the extended grid does not improve performance and doubles the cost.
 - **Main text — impact of the prior** (this study, `results/`): factorial n × p × q × prior with BIC relaxed, AND (main) and OR.
 
@@ -517,7 +517,7 @@ Suggested wording (Supplementary, with `Fig_repro_jaccard` and the table above):
 **Design.** The same setting as the selection-rule study: p = 100, q = 3, n ∈ {1k, 5k, 10k, 20k}, replications 1–100, the **same datasets as the main study** (`dataset_seed()`), `bic_relaxed`, OR and AND.
 - Arms 1–3 are the main-study fits in `results/`: no prior; noisy prior on the baseline only (prCGGM); perfect prior on the baseline only (prCGGM).
 - Arms 4–5 are new, in `results_ablation/`: noisy prior on all terms; perfect prior on all terms.
-- **Prior on all terms:** the covariate-specific term h × node k gets penalty factor ϑ (1 − W_jk) instead of ϑ. Template option `prior_on_covariates = TRUE` (`ggReg_main_functions.R`, both copies; default FALSE) and `run_task.R --prior_on_covariates TRUE`.
+- **Prior on all terms:** the covariate-specific term h × node k gets penalty factor ϑ (1 − W_jk) instead of ϑ. Template option `prior_on_covariates = TRUE` (`Computational_templates/ggReg_main_functions.R`, also an argument of `GGReg_full_estimation()` since 2026-11-25; default FALSE; template only, not in the package) and `run_task.R --prior_on_covariates TRUE`.
 - **Checks (local, n = 1k, rep 1, nodes 1–4):**
   - with the option off, the selections reproduce the main study exactly (n_selected and λ per node);
   - with the option on, the perfect-prior selections change (nodes 2 and 3), and the no-prior ones do not.
@@ -579,3 +579,16 @@ Rscript --vanilla analyse_ablation.R results_ablation results
 **Figures.**
 - `results_ablation/summary/Fig_ablation_main.{png,pdf}` (`fig_ablation_main.R`; 4 panels, AND: baseline F1, binary F1, continuous F1, binary FPR) for main Fig 2;
 - `Fig_ablation` (7 panels, AND) and `Fig_ablation_OR` for the supplementary.
+
+## Reorganisation (2026-11-25)
+- **Single template:** `run_task.R`, `run_repro_task.R` and `selection_test/run_selection_test.R` source `../Computational_templates/ggReg_main_functions.R`. The local copy was removed (it was identical). Quick check after the change: `run_task.R --n 1000 --p 50 --q 1 --rep 1` runs end to end in about 18 s on 4 cores.
+- **Part 1 (selection rules) moved here** from `Add_simulation_analysis/`:
+  - `selection_rules/run_setting.R`, `selection_rules/R/explore_functions.R`, `selection_rules/analyse_results_v3.R`, `selection_rules/slurm/*_v3*`;
+  - the results in `selection_rules/results_v3/`;
+  - `paper_figures.R` reads `selection_rules/results_v3/summary/`.
+- **Part 1 shares the template code:**
+  - `explore_functions.R` takes `build_delta_dictionary()`, `disparity_backbone()` and `partial_correlation()` from the single template; the last two are now template-only post-selection filters, `post_filter = "pcor"` / `"backbone"`;
+  - it takes the generator helpers from `../Preprint_simulation_analysis/Sim_functions.R`;
+  - before, it used copies of these in `Add_simulation_analysis/code/` (identical; checked by comparing the parsed functions).
+- **Check:** replication n = 1000, rep 1, pass 1 (CV, stability, pcor, backbone), rerun with the moved code reproduces the saved `evaluation.rds`: 56/56 rows, edge counts, TPR, FPR and F1 identical, correlations and Frobenius errors to 1e-15.
+- **How to reproduce every simulation item of the paper:** `README_run_simulation.md`.

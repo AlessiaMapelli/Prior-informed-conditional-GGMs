@@ -2,7 +2,7 @@
 
 **Associated publication:** *Prior-Informed Conditional Gaussian Graphical Models for Personalized Protein Interaction Network Reconstruction* 
 
-> **The method is now available as the R package [`prCGGM`](https://CRAN.R-project.org/package=prCGGM), which is the recommended way to use it** (`install.packages("prCGGM")`; see `prCGGM_example.R` for the example below run with the package). In the package, `GGReg_full_estimation()` becomes `prcggm()` and `predict_personalized_network()` becomes `predict()`. On the example data, both implementations give the same networks. This folder documents the standalone code associated with the paper.
+> **The method is available as the R package [`prCGGM`](https://CRAN.R-project.org/package=prCGGM), which is the recommended way to use it** (`install.packages("prCGGM")`; see `prCGGM_example.R` for the example below run with the package). In the package, `GGReg_full_estimation()` becomes `prcggm()` and `predict_personalized_network()` becomes `predict()`. This folder holds the standalone code used for the paper: **the single copy of `ggReg_main_functions.R` sourced by all the simulation scripts** (`Simulation_analysis_v2/`, `Add_simulation_analysis/`). The template matches prCGGM ≥ 0.2.0 (selection rules, defaults); see "Template and package" below for the differences.
 
 ---
 
@@ -36,7 +36,7 @@ For each node, the penalty `λ` and the hyperparameters (the sparsity-group bala
 | `"stability_bic"` | stability selection (50 half-subsamples, selection probability ≥ 0.75, ≤ 1 expected false selection per node) | those of `"bic_relaxed"` | paths + 50 subsample paths |
 | `"stability_cv"` | as above | those of `"cv_min"` | paths + CV + 50 subsample paths |
 
-With `refit = TRUE` (default) the selected predictors of each node are refitted by OLS, which removes the shrinkage of the edge weights; the selected edges are unchanged. The rules were compared in simulation studies (see `Add_simulation_analysis/` §8 and `Simulation_analysis_v2/selection_test/`): cross-validation with `lambda.min`, the rule of the first version of this template, and BIC on the penalised RSS both select increasingly dense networks as the sample size grows; the relaxed criteria do not, and are as accurate as stability selection at a fraction of its cost.
+With `refit = TRUE` (default) the selected predictors of each node are refitted by OLS, which removes the shrinkage of the edge weights; the selected edges are unchanged. The rules were compared in simulation studies (see `Simulation_analysis_v2/selection_rules/` and `Simulation_analysis_v2/selection_test/`; reports in `Add_simulation_analysis/README.md` §8 and `Simulation_analysis_v2/README.md`): cross-validation with `lambda.min`, the rule of the first version of this template, and BIC on the penalised RSS both select increasingly dense networks as the sample size grows; the relaxed criteria do not, and are as accurate as stability selection at a fraction of its cost.
 
 **Default and guideline.** The default is `selection = "bic_relaxed"` with `symm_method = "AND"`: it is the most accurate combination for n ≥ 5000, in particular for binary covariate effects, the focus of the case study. With small samples (n ≈ 1000), and for continuous covariate effects at moderate n, `"ebic_relaxed"` with `"OR"` is preferable: the BIC admits more false edges in single regressions, which AND removes only partly. F1 (Part 1, p = 100, q = 3, noisy prior, 100 replications), n = 1k / 5k / 10k / 20k:
 
@@ -49,6 +49,22 @@ With `refit = TRUE` (default) the selected predictors of each node are refitted 
 
 ---
 
+## Template and package
+
+The template and prCGGM (≥ 0.2.0) implement the same estimator. `check_template_vs_package.R` fits both on the example data for every shared selection rule and both symmetrisations. All deterministic rules (`bic_relaxed`, `ebic_relaxed`, `bic`, `ebic`, `cv_min`, `cv_1se`) give the same networks (coefficients equal to about 1e-15). The differences are:
+
+| | Template | prCGGM package |
+|---|---|---|
+| Interface | `GGReg_full_estimation()`, `predict_personalized_network()`, `plot_personalized_network()`, ... | `prcggm()`, `predict()`, `plot()`, `summary()`, ... (argument names differ: `known_ppi` → `prior`, `asparse_grid` → `alpha_grid`, `weight_grid` → `theta_grid`, `K` → `nfolds`, ...) |
+| Stability selection | random subsamples drawn per node (seed 5000 + node) | one set of subsamples shared by all nodes, drawn before fitting (reproducible with `set.seed()` also in parallel and SLURM runs). Same estimator; with the same seed the selected edges can differ slightly |
+| `post_filter = "pcor"` / `"backbone"`, `post_control` | **template only**: post-selection filters on the symmetrised networks (absolute partial correlation above a threshold; disparity-filter backbone). Used in the paper's comparison of selection rules (Supplementary), applied to the `cv_min` networks, where they did not improve on the relaxed BIC | not available |
+| `prior_on_covariates = TRUE` | **template only**: the prior also weights the penalty of the covariate-specific terms. Used only for the ablation of the selective prior in the paper (Supplementary); it damages the covariate-specific networks, so it is not recommended | not available: the prior enters the baseline only |
+| SLURM | `use_slurm = TRUE` with `slurm_ggReg_node.sbatch` / `ggReg_node_job.R` | `prcggm_slurm_prepare()` / `prcggm_slurm_collect()` |
+
+The template-only options exist to reproduce the paper's supplementary analyses and are deliberately not part of the package.
+
+---
+
 ## Repository Contents
 
 | File | Description |
@@ -57,6 +73,8 @@ With `refit = TRUE` (default) the selected predictors of each node are refitted 
 | `ggReg_node_job.R` | Single-node estimation script for SLURM array jobs |
 | `slurm_ggReg_node.sbatch` | SLURM batch script template for HPC execution |
 | `prCGGM_example.R` | The same example run with the `prCGGM` R package |
+| `check_template_vs_package.R` | Checks that the template and prCGGM give the same networks on the example data |
+| `Example_data.RData`, `expression_data.csv`, `covariate_data.csv`, `ppi_weight_matrix.txt` | Example data (1000 subjects, 10 proteins, 1 binary covariate, perfect prior) |
 
 ---
 
@@ -214,6 +232,9 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 | `lambda_prec` | `NULL` | Fixed `λ` for all nodes (the hyperparameters are then chosen by BIC) |
 | `symm_method` | `"AND"` | Symmetrization rule: `"AND"` (more conservative; default, with `"bic_relaxed"`) or `"OR"` (with `"ebic_relaxed"` for small n) |
 | `use_slurm` | `FALSE` | Use SLURM for HPC parallelization |
+| `post_filter` | `"none"` | **Template only.** Post-selection filter: `"pcor"` or `"backbone"` (see "Template and package") |
+| `post_control` | `list()` | **Template only.** `pcor_threshold` (0.05), `backbone_alpha` (0.05) |
+| `prior_on_covariates` | `FALSE` | **Template only.** Prior also on the covariate-specific terms (ablation) |
 
 ---
 
@@ -221,7 +242,7 @@ Each SLURM array task runs `ggReg_node_job.R` independently for a single node, a
 
 If you use this code, please cite:
 
-> Mapelli, A. *Incorporating prior knowledge into Conditional GGM: an application to Protein Interaction Networks*. Draft, Politecnico di Milano.
+> Mapelli, A., Massi, M. C., Cuccuru, G., Di Angelantonio, E., Ieva, F. (2026). Prior-informed conditional Gaussian graphical models for personalized protein interaction network reconstruction. arXiv:2606.31805.
 
 ---
 

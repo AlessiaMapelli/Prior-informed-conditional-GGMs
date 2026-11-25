@@ -1,0 +1,18 @@
+# Public code only. UK Biobank data and anything derived from individual-level
+# data must never be committed here (data stay in the private project folder).
+*.RData
+*.rda
+*.rds
+*.csv
+*.tsv
+*.txt
+*.xlsx
+*.html
+*.png
+*.pdf
+*_id.txt
+results*/
+external/
+logs/
+prcggm_nodes/
+permutation_null/

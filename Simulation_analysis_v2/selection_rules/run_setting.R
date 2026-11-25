@@ -1,7 +1,7 @@
 #################################################
 ## Run one simulation setting (sample size x replication)
 #################################################
-# Usage (from the Add_simulation_analysis folder):
+# Usage (from the Simulation_analysis_v2/selection_rules folder):
 #   Rscript run_setting.R --n 5000 --rep 1 [--p 100] [--prior noisy]
 #                         [--ncores 16] [--nodes all|1-16] [--stab_B 50]
 #                         [--out results_v3] [--keep_nodes 0]
@@ -40,7 +40,7 @@ parse_range <- function(x, p) {
 }
 
 source("R/explore_functions.R")
-load_original_functions("code")
+load_original_functions()  # single template + preprint Sim_functions.R
 
 setting_dir <- file.path(opt$out, sprintf("n%d_p%d_%s", opt$n, opt$p, opt$prior),
                          paste0("rep", opt$rep))

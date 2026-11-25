@@ -44,7 +44,7 @@ suppressPackageStartupMessages({
   library(sparsegl)
   library(glmnet)
 })
-source("ggReg_main_functions.R")
+source("../Computational_templates/ggReg_main_functions.R")  # single template copy
 source("R/sim_design.R")
 
 #' Seeds of the reproducibility experiment (disjoint from dataset_seed(),
