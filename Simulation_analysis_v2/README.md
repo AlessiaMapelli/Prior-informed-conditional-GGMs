@@ -166,6 +166,8 @@ Note on the timing test: in `sample_fitness_pl` the low node indices have the la
 - 2026-11-05: selection test written (`selection_test/`, see below); local check at n = 1000, p = 50, q = 3: the current BIC variant reproduces the main study exactly.
 - 2026-11-07: Part 1 (Add_simulation_analysis third pass, job 45436972) and Part 2 (job 45436977) completed without errors. Both confirm the relaxed criteria, the guideline (EBIC relaxed + OR best at small n, BIC relaxed + AND best for n ≥ 5000) and the current grid.
 - 2026-11-07: **final decision: default `bic_relaxed` + AND** (best for n ≥ 5000 and for binary effects, the case-study setting). Template, package (`v.0.2`) and `run_task.R` defaults changed; template copy in this folder refreshed. Main study p = 50 / 100 to be rerun into `results/`, then p = 250 / 500.
+- 2026-11-14: **main study with `bic_relaxed` complete** (p = 50 / 100 / 250 / 500, analysis job 45606506, `results/summary/`). 3,198 / 3,200 tasks: n = 1000, p = 250, q = 3, reps 20 and 61 (array 620 and 661 of the p = 250 block, job 45451372) hit the 3 h limit (~275 s per node). See "Main study results" below.
+- 2026-11-16: the two timed-out tasks (n = 1000, p = 250, q = 3, reps 20 and 61) rerun with `bic_relaxed`: main study complete, 100 replications in all 32 settings (analysis job 45671105). EBIC relaxed rerun at n = 1000 complete, 8 cells × 100 replications (analysis job 45671103, `results_ebic_relaxed/summary/`). **EBIC does not fix the P ≳ n cells: the cause is a degeneracy of the relaxed criteria near saturation** (see "EBIC relaxed at n = 1000: results").
 
 ## Selection test (2026-11-05)
 Question: (i) how much does BIC on the relaxed RSS improve over BIC on the penalised RSS, and at what cost; (ii) does an extended hyperparameter grid help, given that the selections pile up at alpha = 0.99 and theta = 0.8; (iii) does stability selection gain from taking its hyperparameters from the relaxed BIC instead of the penalised one, or is the extra cost not worth it.
@@ -275,3 +277,305 @@ Conclusions:
 4. BIC relaxed with OR over-selects at small n (FPR ~1% at n = 1k), as expected with P = 396 predictors per node.
 5. The prior gain survives the new rule: with EBIC relaxed + OR, Perfect > Noisy > None at every n (e.g. n = 1k: 0.79 / 0.75 / 0.69), the gap shrinking with n. Same with BIC relaxed + AND (n = 1k: 0.76 / 0.73 / 0.66; n = 20k: 0.99 / 0.98 / 0.98).
 6. **BIC relaxed + AND (final default) vs EBIC relaxed + OR, overall F1 n = 1k / 5k / 10k / 20k:** Perfect 0.76 / 0.91 / 0.96 / 0.99 vs 0.79 / 0.92 / 0.96 / 0.98; Noisy 0.73 / 0.90 / 0.95 / 0.98 vs 0.75 / 0.90 / 0.94 / 0.96; None 0.66 / 0.90 / 0.95 / 0.98 vs 0.69 / 0.89 / 0.94 / 0.95. As in Part 1, EBIC + OR is better at n = 1k under every prior, BIC + AND equal or better from n = 5k on, so the final decision holds under every prior.
+
+## Main study results (`bic_relaxed`, 2026-11-14, analysis job 45606506)
+Tables and figures in `results/summary/` (`table_<metric>_<symm>.csv`, `prior_gain_<symm>.csv`, `tuning.csv`, `computing_time.csv`). Complete except n = 1000, p = 250, q = 3 (98 replications; two tasks timed out).
+
+F1, AND, mean over 100 replications, n = 1k / 5k / 10k / 20k (Noisy prior):
+
+| p | q | Baseline | Binary effect | Continuous effect |
+|---|---|---|---|---|
+| 50 | 1 | 0.97 / 0.99 / 0.99 / 0.99 | 0.73 / 0.99 / 1.00 / 1.00 | — |
+| 50 | 3 | 0.93 / 0.98 / 0.99 / 0.99 | 0.69 / 0.98 / 0.99 / 0.99 | 0.10 / 0.59 / 0.87 / 0.97 |
+| 100 | 1 | 0.95 / 0.98 / 0.98 / 0.99 | 0.66 / 0.98 / 0.99 / 0.99 | — |
+| 100 | 3 | 0.90 / 0.98 / 0.99 / 0.99 | 0.63 / 0.97 / 0.99 / 0.99 | 0.07 / 0.50 / 0.81 / 0.97 |
+| 250 | 1 | 0.91 / 0.97 / 0.98 / 0.99 | 0.51 / 0.95 / 0.98 / 0.99 | — |
+| 250 | 3 | 0.61 / 0.96 / 0.98 / 0.98 | 0.25 / 0.93 / 0.97 / 0.98 | 0.03 / 0.37 / 0.71 / 0.93 |
+| 500 | 1 | 0.70 / 0.96 / 0.97 / 0.98 | 0.31 / 0.93 / 0.97 / 0.99 | — |
+| 500 | 3 | 0.03 / 0.93 / 0.96 / 0.98 | 0.01 / 0.89 / 0.94 / 0.97 | 0.01 / 0.29 / 0.60 / 0.87 |
+
+Findings:
+1. **For n ≥ 5000 BIC relaxed + AND works at every p**: baseline F1 ≥ 0.90 and binary-effect F1 ≥ 0.82 under every prior, improving with n; continuous effects need n ≥ 10k–20k, more so at large p. AND is above OR for the baseline and binary effects at every n ≥ 5k (gap growing with p: e.g. p = 500, q = 3, n = 20k, binary 0.97 vs 0.79, Noisy); for continuous effects OR is better at n = 5k–10k (e.g. p = 50, q = 3, n = 5k: 0.73 vs 0.59), as in Part 1.
+2. **BIC relaxed breaks down when the number of predictors per node P = (p − 1)(q + 1) is close to or above n** (n = 1000): P = 1996 (p = 500, q = 3): ~991 predictors selected per node, ~48,000 baseline edges against 748 true, FPR ≈ 0.38, F1 0.03; P ≈ 1000 (p = 500, q = 1; p = 250, q = 3): 3–2.4× too many edges, baseline F1 0.61–0.70; P = 498 (p = 250, q = 1): mild inflation (F1 0.87–0.91). As df → n the refit RSS → 0, so log(RSS) dominates the log(n) penalty. Part 1 / Part 2 (P = 396, n = 1k) did not reach this regime. EBIC is designed for P ≥ n (its penalty grows with log C(P, df)). These fits are also the slowest (n = 1k, p = 500, q = 1: 6.1 h mean, 8.3 h max per task).
+3. **Prior gain is in the hard settings and on the baseline**: q = 3, n = 1000, Perfect − None baseline F1 +0.12 to +0.14 (TPR +0.21 to +0.24) for p ≤ 250, Noisy − None +0.07 to +0.08; it falls to ≤ 0.05 at n = 5k and vanishes at n = 20k, where all priors reach F1 ≥ 0.97. With q = 1 the baseline is already easy and the prior adds ≤ 0.03 (except p = 500).
+4. **Covariate effects are hardly affected by the prior** (it penalises only the baseline): ±0.02 for p ≤ 100. At p ≥ 250 and n ≥ 5k the **Perfect prior lowers binary-effect F1 by 0.02–0.04** (TPR unchanged, more false positives: p = 500, q = 1, n = 5k, FPR 0.78 vs 0.24 per 1000 for Noisy), while the Noisy prior raises it (+0.02 to +0.06). The Perfect prior gives penalty factor 0 (unpenalised) to every true baseline edge; the selected λ is then lower (median 0.00064 vs 0.00102 Noisy, 0.00069 None) and more covariate terms enter. To be checked; a floor on the penalty factor (e.g. 1 − 0.9 · prior) would avoid fully unpenalised predictors.
+5. Pearson on true positives ≥ 0.99 wherever edges are found.
+
+Open: (a) how to handle P ≳ n — rerun the n = 1000 cells with `ebic_relaxed` and/or make the rule depend on P / n; (b) rerun the two timed-out tasks with a longer limit; (c) the Perfect-prior effect on covariate components.
+
+### EBIC relaxed at n = 1000 (decided 2026-11-14)
+Rerun of the n = 1000 cells of all p and q with `selection = "ebic_relaxed"` into `results_ebic_relaxed/`, to handle P ≳ n (finding 2) and to set the BIC / EBIC guideline in terms of P / n. `slurm/run_tasks.sbatch` takes `SELECTION` and `OUT`, `slurm/analyse.sbatch` takes `RES` (checked locally: `config.rds` records `ebic_relaxed`). Within each p block the n = 1000 tasks are array indices 601–800.
+```
+sbatch --array=601-800%50 --export=ALL,OFFSET=2400,SELECTION=ebic_relaxed,OUT=results_ebic_relaxed --time=00:30:00 --mem-per-cpu=2G slurm/run_tasks.sbatch   # p = 50
+sbatch --array=601-800%50 --export=ALL,OFFSET=1600,SELECTION=ebic_relaxed,OUT=results_ebic_relaxed --time=01:00:00 --mem-per-cpu=3G slurm/run_tasks.sbatch   # p = 100
+sbatch --array=601-800%50 --export=ALL,OFFSET=800,SELECTION=ebic_relaxed,OUT=results_ebic_relaxed  --time=04:00:00 --mem-per-cpu=3G slurm/run_tasks.sbatch   # p = 250
+sbatch --array=601-800%50 --export=ALL,OFFSET=0,SELECTION=ebic_relaxed,OUT=results_ebic_relaxed    --time=10:00:00 --mem-per-cpu=4G slurm/run_tasks.sbatch   # p = 500
+# when finished
+sbatch --export=ALL,RES=results_ebic_relaxed slurm/analyse.sbatch
+```
+
+### EBIC relaxed at n = 1000: results (2026-11-16, analysis job 45671103)
+F1 at n = 1000, Noisy prior, BIC relaxed → EBIC relaxed (P = (p − 1)(q + 1) predictors per node):
+
+| P (p, q) | AND baseline | AND binary | OR baseline | OR binary | OR continuous |
+|---|---|---|---|---|---|
+| 98 (50, 1) | 0.97 → 0.99 | 0.73 → 0.63 | 0.86 → 0.94 | 0.73 → 0.79 | — |
+| 196 (50, 3) | 0.93 → 0.91 | 0.69 → 0.53 | 0.86 → 0.92 | 0.69 → 0.71 | 0.21 → 0.11 |
+| 198 (100, 1) | 0.95 → 0.99 | 0.66 → 0.53 | 0.79 → 0.93 | 0.61 → 0.71 | — |
+| 396 (100, 3) | 0.90 → 0.90 | 0.63 → 0.41 | 0.80 → 0.91 | 0.58 → 0.64 | 0.13 → 0.06 |
+| 498 (250, 1) | 0.91 → 0.99 | 0.51 → 0.34 | 0.65 → 0.94 | 0.41 → 0.54 | — |
+| 996 (250, 3) | 0.61 → 0.61 | 0.26 → 0.11 | 0.13 → 0.13 | 0.04 → 0.02 | 0.01 → 0.01 |
+| 998 (500, 1) | 0.70 → 0.83 | 0.31 → 0.15 | 0.39 → 0.70 | 0.20 → 0.27 | — |
+| 1996 (500, 3) | 0.03 → 0.03 | 0.01 → 0.01 | 0.02 → 0.02 | 0.01 → 0.01 | 0.00 → 0.00 |
+
+Findings:
+1. **Where nothing saturates (P ≤ 498) the Part 1 guideline holds at every P**: EBIC relaxed + OR vs BIC relaxed + AND, binary effect 0.79 / 0.71 / 0.71 / 0.64 / 0.54 vs 0.73 / 0.69 / 0.66 / 0.63 / 0.51, baseline similar (0.91–0.94 vs 0.90–0.97). EBIC + AND is too sparse for covariate effects (binary −0.08 to −0.22); EBIC lowers continuous-effect F1 under both symmetrisations (TPR falls).
+2. **EBIC does not fix P ≳ n; the problem is a degeneracy, not the BIC penalty.** Per-node selections are bimodal: either ≤ 10 predictors or saturated (994–996 of 996 predictors, λ ≈ 1e-6, the end of the path). p = 500, q = 3: ~496 of 500 nodes saturated under both rules; p = 250, q = 3: ~43 of 250 nodes (rep 1). With df ≈ P ≈ n the OLS refit nearly interpolates (n − df ≈ 4), RSS → 0 and n log(RSS / n) → −∞, which beats any finite penalty, BIC or EBIC. Checked on node 11 of n = 1000, p = 250, q = 3, rep 1 (debug copy of the template, 2026-11-16): the selected support has df = 996 = P, λ = 1.3e-6, RSS = 0.165 against y'y = 999 (Gram RSS identical to `lm.fit`, so not a numerical artefact), EBIC = −1827 (n log(RSS/n) = −8707 against the penalty log(n)·df = 6880). The support is chosen by the lasso path to fit y, so near saturation the refit RSS is far below its nominal (n − df)σ². The EBIC term 2γ log C(P, df) does not help because it returns to 0 as df → P (C(P, P) = 1). p = 500, q = 1 (P = 998) saturates only in some replications, which EBIC partly reduces.
+3. **Proposed fix**: exclude from the relaxed criteria (BIC and EBIC) the supports with too many predictors, e.g. df ≤ n / 2 (new `selection_control` setting), in the template and the package; then rerun the n = 1000 cells with both rules. The true node degrees are ≤ 10, so the cap does not bind in any non-degenerate fit (n ≥ 5000 unaffected: there n − P ≥ 3000).
+
+### Diagnostics on single nodes and on the prior (local, 2026-11-16)
+**Stability selection on a saturated node** (n = 1000, p = 250, q = 3, rep 1, no prior; scratchpad script `node_test.R`). TP / FP per node:
+
+| Rule | Node 11 baseline (4 true) | Node 11 covariates (3 true) | Node 1 baseline (5 true) | Node 1 covariates (5 true) | s per node |
+|---|---|---|---|---|---|
+| BIC relaxed | 4 / 245 | 3 / 744 | 3 / 0 | 0 / 3 | 63–73 |
+| EBIC relaxed | 4 / 245 | 3 / 744 | 2 / 0 | 0 / 0 | 68–71 |
+| Stability (BIC) | 2 / 0 | 0 / 0 | 2 / 0 | 0 / 0 | 90–100 |
+
+Stability selection avoids the saturation (it only uses the part of the path with small models) but is conservative at n = 1000; cost ~1.3–1.4× BIC relaxed. Cluster pilot submitted: `stability_bic`, n = 1000, p = 250, q = 3, reps 1–10 → `results_stability/`.
+
+**Where the false positives fall under each prior** (n = 5000, p = 250, q = 1, reps 1–2, nodes 1–100, `bic_relaxed`, node-wise supports before symmetrisation; scratchpad script `prior_fp.R`). Totals over 200 node fits:
+
+| Prior | Baseline TP / FN | Baseline FP | of which on (false) prior edges | Binary TP / FN | Binary FP | of which on true baseline edges | median λ | mean predictors |
+|---|---|---|---|---|---|---|---|---|
+| Perfect | 275 / 0 | 100 | — | 178 / 0 | 123 | 0 | 0.00069 | 3.38 |
+| Noisy | 275 / 0 | 69 | 36 (of 4,817 false prior pairs) | 176 / 2 | 56 | 3 | 0.00102 | 2.88 |
+| None | 275 / 0 | 100 | — | 177 / 1 | 87 | 3 | 0.00079 | 3.20 |
+
+- True positives are the same under all priors (TPR ≈ 1): at q = 1 and n = 5000 the prior can only change false positives.
+- **Hypothesis rejected:** the extra binary-effect false positives of the Perfect prior are *not* on the unpenalised true baseline pairs (0 of 123); they are spread over other pairs.
+- The differences follow the selected λ: Noisy selects the largest λ, Perfect the smallest, so Noisy has the fewest false positives everywhere (baseline off-prior 33 vs 100; binary 56 vs 123), at the price of 36 false positives on its own false-prior edges (0.75% of them).
+- Likely mechanism (not verified): the prior changes the order in which predictors enter the λ path, and therefore which supports the relaxed BIC compares. With the Noisy prior, partially favoured false pairs enter early without improving the fit, and the minimum lands at a larger λ; with the Perfect prior all true baseline edges are in from the start and the minimum lands at a smaller λ, where more noise terms have entered. The effect is small in absolute terms (≤ 0.6 false positives per node).
+
+
+**Interpretation for the publication.**
+- At q = 1 and n ≥ 5000, the "messy" effect of the prior on baseline F1 (see `results/summary/`) is a false-positive effect, not a recovery effect. TPR is already about 1 without a prior (`Fig_TPR_AND.png`), so the prior can only move the selected λ, and with it the number of false positives.
+- That the noisy prior has fewer false positives than the perfect prior is a side effect of how the prior interacts with BIC selection along the path. It is not evidence that a noisy prior is better than a perfect one, and the paper should not present it that way.
+- The prior's real benefit is recovering true edges in the hard settings (q = 3, smaller n), where TPR without a prior is well below 1. That is the message for the main text.
+- Suggested wording: *"When the edges are already recovered without prior information (q = 1, n ≥ 5000), the prior mainly shifts the λ selected by the relaxed BIC, and the resulting differences in F1 between priors are small (≤ 0.6 false positives per node) and not systematic."*
+- Where to put it: as a short remark in the results, with this table in the Supplementary Material if a reviewer asks why the noisy prior can beat the perfect prior at q = 1.
+
+### Stability selection pilot at n = 1000, p = 250, q = 3 (job 45679218, reps 1–10, analysed locally 2026-11-17)
+`selection = "stability_bic"` (B = 50 half-samples, π = 0.75, PFER = 1, α and ϑ from the relaxed BIC), compared with BIC and EBIC relaxed on the same 10 datasets (P = 996, P/n ≈ 1). Means over 10 replications; FPR × 1000.
+
+| Component | Prior | BIC relaxed AND: TPR / FPR / F1 | BIC relaxed OR: F1 | Stability AND: TPR / FPR / F1 | Stability OR: TPR / FPR / F1 |
+|---|---|---|---|---|---|
+| Baseline | Perfect | 0.99 / 20.4 / 0.55 | 0.09 | 0.91 / 0.04 / 0.95 | 0.99 / 0.32 / **0.98** |
+| Baseline | Noisy | 0.90 / 20.0 / 0.51 | 0.09 | 0.82 / 0.24 / 0.89 | 0.90 / 1.60 / **0.89** |
+| Baseline | None | 0.76 / 21.1 / 0.44 | 0.08 | 0.67 / 0.07 / 0.80 | 0.69 / 0.54 / **0.80** |
+| Binary effect | Noisy | 0.45 / 18.7 / 0.15 | 0.02 | 0.09 / 0.02 / 0.16 | 0.22 / 0.22 / **0.34** |
+| Continuous effect | Noisy | 0.06 / 18.9 / 0.02 | 0.01 | 0.005 / 0.02 / 0.01 | 0.005 / 0.09 / 0.01 |
+
+EBIC relaxed is close to BIC relaxed (baseline F1 0.44–0.54 AND, 0.07–0.09 OR).
+
+Findings:
+1. **Stability selection removes the saturation.** Predictors selected per node: mean 2.4–3.1, max 12, no node above 900. BIC and EBIC relaxed: median 3–10 but 324–342 of 2,500 node fits saturated (996 of 996), mean 137.
+2. **Baseline recovered at P ≈ n:** F1 0.80 / 0.89 / 0.98 (None / Noisy / Perfect) with OR, against 0.44–0.55 for BIC relaxed + AND. This is comparable to BIC relaxed in the non-saturated cells at n = 1000 (e.g. p = 100, q = 3: 0.82–0.96). Precision 0.87–0.99.
+3. **The prior gain is clear** under stability selection (+0.09 Noisy, +0.18 Perfect vs None, baseline F1, OR), and it comes through TPR, as in the main study.
+4. **Covariate effects remain hard:** binary F1 0.34–0.36 with OR (precision 0.73–0.91, TPR 0.22–0.24), better than BIC relaxed (0.15–0.16 AND). Continuous effects are not recovered by any rule at n = 1000 (F1 ≤ 0.03). They need n ≥ 10k even when P/n is small.
+5. **With stability selection OR is better than AND** (the rule is already conservative), the opposite of the relaxed BIC. Guideline: when P/n ≥ 0.5 use `stability_bic` with OR.
+6. **Cost:** 200 s per node vs 99 s for BIC relaxed (≈ 2×); about 50–60 min per prior per replication on 16 cores.
+
+To feed `paper_figures.R` (FigS_n1000): `sbatch --export=ALL,RES=results_stability slurm/analyse.sbatch`.
+
+### Stability selection in the other P/n ≥ 0.5 cells (planned 2026-11-17, to run when the cluster is free)
+- Cells: n = 1000 with p = 500, q = 1 (P = 998) and p = 500, q = 3 (P = 1996). Replications 1–10, the same datasets as the BIC / EBIC relaxed fits. 10 replications rather than 100: the F1 standard deviations across replications are ≤ 0.07, so the standard error of a mean is ≤ 0.02, far below the differences between rules (≥ 0.3 in the pilot). Report as "10 replications (paired)" in S7.
+- Array indices in `slurm/settings.csv` (OFFSET = 0, p = 500 block): 601–610 = n 1000, q = 3, reps 1–10; 701–710 = n 1000, q = 1, reps 1–10.
+- Expected cost (unknown, hence step 1): BIC relaxed took 3.1 h (q = 3) and 6.1 h (q = 1, max 8.3 h) per task; stability took ≈ 2× BIC relaxed in the pilot.
+```
+# 1. Timing: 16 nodes, Noisy prior, rep 1 (writes nodes_timing.rds only)
+# (2026-11-19: the first attempt used `sbatch --wrap`, which runs under /bin/sh; sourcing
+#  singularity_functions then fails at line 43 (`aws-cli': not a valid identifier) and the job
+#  exits before Rscript. Use the bash script instead.)
+for Q in 1 3; do sbatch --output=logs/stabtime_q${Q}_%j.out slurm/stability_timing.sbatch $Q; done
+# expected wall per task ≈ mean node time (in the log) × 500 nodes × 3 priors / 16 cores; set --time to ~1.5× that
+
+# Timing result (2026-11-20; jobs 45930943 q = 3, 45930942 q = 1; 16 nodes, Noisy prior, n = 1000, p = 500):
+#   q = 3: mean node time 314.5 s (16 nodes in 373 s) -> 314.5 x 500 x 3 / 16 = 8.2 h per task
+#          (BIC relaxed 3.1 h: x2.6)
+#   q = 1: mean node time 454.3 s (16 nodes in 502 s) -> 454.3 x 500 x 3 / 16 = 11.8 h per task
+#          (BIC relaxed 6.1 h, max 8.3 h: x1.9)
+#   --time set to about 1.5-1.7x the expected time to cover variation across replications
+#   (BIC relaxed max/mean = 1.36 for q = 1).
+# 2. Full run (replace --time with the estimate from step 1)
+sbatch --array=601-610%10 --export=ALL,OFFSET=0,SELECTION=stability_bic,OUT=results_stability --time=14:00:00 --mem-per-cpu=4G slurm/run_tasks.sbatch   # p = 500, q = 3 (expected about 8.2 h)
+sbatch --array=701-710%10 --export=ALL,OFFSET=0,SELECTION=stability_bic,OUT=results_stability --time=20:00:00 --mem-per-cpu=4G slurm/run_tasks.sbatch   # p = 500, q = 1 (expected about 11.8 h)
+# 3. When finished (summarises all three stability cells), then rerun paper_figures.R
+sbatch --export=ALL,RES=results_stability slurm/analyse.sbatch
+```
+
+### Stability selection in all P/n ≥ 0.5 cells: results (jobs 45975774 q = 3 and 45975775 q = 1, analysed locally 2026-11-22)
+
+**Run.** All 20 tasks completed: 601–610 (p = 500, q = 3) and 701–710 (p = 500, q = 1). No time-outs.
+- **Task wall time** (mean / max over replications): q = 3 539 / 623 min (estimate 8.2 h); q = 1 643 / 841 min (estimate 11.8 h).
+- **Mean node time:** 342 s (q = 3) and 407 s (q = 1).
+
+The summary was written with `Rscript --vanilla analyse_results.R results_stability`, which covers all three cells, 10 replications each.
+`paper_figures/FigS_n1000.{png,pdf}` was regenerated from it; the pilot-only version is kept as `FigS_n1000_v1_pilot.*`.
+
+**p = 500 cells**, means over 10 replications, FPR × 1000. BIC and EBIC are the relaxed rules.
+
+| q (P, P/n) | Component | Prior | BIC AND F1 | EBIC AND F1 | Stab AND: TPR / FPR / F1 | BIC OR F1 | EBIC OR F1 | Stab OR: TPR / FPR / F1 |
+|---|---|---|---|---|---|---|---|---|
+| 1 (998, 1.0) | Baseline | None | 0.61 | 0.82 | 0.99 / 0.04 / 0.99 | 0.33 | 0.67 | 1.00 / 0.23 / 0.97 |
+| | | Noisy | 0.70 | 0.83 | 0.99 / 0.20 / 0.97 | 0.39 | 0.70 | 1.00 / 1.05 / 0.88 |
+| | | Perfect | 0.64 | 0.82 | 0.99 / 0.02 / 0.99 | 0.33 | 0.67 | 1.00 / 0.18 / 0.98 |
+| | Binary | Noisy | 0.31 | 0.15 | 0.07 / 0.02 / 0.13 | 0.20 | 0.28 | 0.19 / 0.18 / 0.30 |
+| 3 (1,996, 2.0) | Baseline | None | 0.03 | 0.03 | 0.64 / 0.07 / 0.78 | 0.02 | 0.02 | 0.68 / 0.49 / 0.77 |
+| | | Noisy | 0.03 | 0.03 | 0.77 / 0.31 / 0.85 | 0.02 | 0.02 | 0.89 / 1.80 / 0.82 |
+| | | Perfect | 0.03 | 0.03 | 0.85 / 0.03 / 0.92 | 0.02 | 0.02 | 0.98 / 0.44 / 0.96 |
+| | Binary | Noisy | 0.01 | 0.01 | 0.01 / 0.00 / 0.01 | 0.01 | 0.01 | 0.06 / 0.04 / 0.12 |
+| | Continuous | Noisy | 0.01 | 0.01 | 0.00 / 0.00 / 0.00 | 0.00 | 0.00 | 0.00 / 0.01 / 0.00 |
+
+**Observations:**
+1. **Stability selection rescues the baseline when P > n.** At P/n = 2, BIC and EBIC relaxed saturate: FPR ≈ 0.4–0.7 and F1 ≈ 0.03. Stability keeps FPR below 0.002 and reaches F1 0.78–0.96. At P/n = 1, F1 rises from 0.70 / 0.83 (BIC / EBIC AND) to 0.97, with much smaller variability across replications.
+2. **Covariate effects remain hard at n = 1000.** Binary effect F1 is about 0.3 at P/n = 1, which is no better than the best of BIC and EBIC, and about 0.12 at P/n = 2. The continuous effect is not recovered by any rule (F1 ≈ 0). Stability is conservative: TPR for the binary effect is 0.06–0.19.
+3. **AND vs OR under stability.** The baseline is similar under both rules (AND slightly better with the Noisy prior: 0.97 vs 0.88 and 0.85 vs 0.82). The binary effect is clearly better with OR (0.30 vs 0.13; 0.12 vs 0.01), as in the pilot (p = 250). The guideline "P/n ≥ 0.5 → `stability_bic` with OR" stands, because OR is the only rule that recovers covariate effects. AND may be used if only the baseline matters.
+4. **The prior gain depends on P/n.** At P/n = 2 the prior helps (baseline AND F1: None 0.78, Noisy 0.85, Perfect 0.92). At P/n = 1 the baseline is already at the ceiling without a prior (0.99), and the Noisy prior lowers it slightly (0.97), through a few more false positives.
+5. **Cost.** Mean task wall time vs BIC relaxed: 9.0 h vs 3.1 h for q = 3 (about 2.9×) and 10.7 h vs 6.1 h for q = 1 (about 1.8×).
+
+**FigS_n1000_prior (added 2026-11-22).** New block in `paper_figures.R`, written to `paper_figures/FigS_n1000_prior.{pdf,png}`. It shows F1 (mean ± SD) at n = 1000 by prior (None / Noisy / Perfect): rows = rule × symmetrisation (BIC relaxed, EBIC relaxed, stability; AND / OR), columns = component.
+What it shows:
+- **The prior gain is concentrated in the baseline of the q = 3 settings.** For example, P = 396 with BIC AND: None 0.82, Noisy 0.90, Perfect 0.96. At P = 1,996 with stability AND: 0.78 → 0.85 → 0.92.
+- **The q = 1 settings are already near the ceiling** without a prior.
+- **Covariate effects (binary, continuous) are essentially insensitive to the prior** under every rule (differences within the SD; EBIC AND with the Perfect prior is slightly higher for the binary effect).
+- **With stability selection the Noisy prior can fall below None:** P = 998, both rules, through a few extra false positives.
+
+## Reproducibility experiment (designed 2026-11-23)
+**Question.** How variable is the estimated network across independent datasets drawn from the *same* true network, for BIC relaxed, EBIC relaxed and stability selection, with and without the prior? The main study cannot answer this: each replication draws its own graph and only metrics were stored.
+
+**Design.**
+- p = 100, q = 3 (continuous effect x1, null covariate x2, binary effect x3); n ∈ {1k, 5k, 10k}; R = 50 independent datasets per n.
+- **Fixed truth:** the baseline and covariate networks are drawn from a graph seed `repro_graph_seed(p, q)` = 5e7 + 10p + q, the same for every n and dataset (new argument `graph_seed` of `simulate_dataset()`; with `graph_seed = NULL` the main-study datasets are unchanged, checked on n = 1000, p = 100, q = 3, rep 1). The noisy prior is fixed too (seed graph seed + 7). Datasets differ only in covariates and subjects (seed `repro_data_seed()`, 6e7 + …, disjoint from `dataset_seed()`). True supports: baseline target 162 edges, x1 62, x3 54, x2 0.
+- Rules: `bic_relaxed`, `ebic_relaxed`, `stability_bic` (B = 50, π = 0.75, PFER = 1); priors: noisy and none; OR and AND stored. Everything else as in the main study (grid, 50% random hyperparameter search with node-specific seeds, OLS refit). Note: the random hyperparameter subset and the stability subsample seeds are node-specific and therefore the same across datasets; the variability measured is sampling variability of the data.
+- The estimated networks are stored (edge lists, `networks.rds`), not only the metrics.
+
+**Metrics** (`analyse_repro.R`, per n × rule × prior × symmetrisation × component):
+- pairwise Jaccard similarity of the edge sets over the 1,225 pairs of datasets;
+- edge-selection frequency across datasets, for true edges (mean, share selected in ≥ 80% of datasets, never selected) and for non-edges (mean × 1000, number selected in ≥ 20% / ≥ 50% of datasets); instability index mean 4f(1 − f) over edges ever selected;
+- number of estimated edges (density): mean, SD, CV; mean F1 / TPR / FPR for reference.
+- Null covariate x2: density and recurrent false positives only.
+
+**Files.** `run_repro_task.R`, `slurm/settings_repro.csv` (150 rows: tasks 1–50 n = 10k, 51–100 n = 5k, 101–150 n = 1k), `slurm/run_repro.sbatch`, `analyse_repro.R`. Outputs in `results_reproducibility/n<n>_p100_q3/rep<r>/` and `results_reproducibility/summary/` (`repro_summary.csv`, `repro_jaccard_pairs.csv`, `repro_edge_frequency.csv`, `Fig_repro_jaccard`, `Fig_repro_frequency`, `Fig_repro_density`).
+
+**Cost.** From the main study and the selection test (p = 100, q = 3, 16 cores): BIC / EBIC relaxed ≈ 55 s (1k) to 140 s (10k) per prior for 100 nodes; stability ≈ 65–97 s per node. Expected ≈ 20 min (1k) to 35 min (10k) per task (3 rules × 2 priors), ≈ 1,200 core-hours in total. Local test (4 nodes, n = 1k): 7.5 s per node BIC/EBIC, 44 s stability. Pipeline tested end to end on p = 50, 3 datasets.
+
+**Submission** (from Simulation_analysis_v2):
+```
+sbatch --array=1-150%30 slurm/run_repro.sbatch
+# when finished
+Rscript --vanilla analyse_repro.R results_reproducibility
+```
+
+### Reproducibility experiment: results (job 46038647, analysed locally 2026-11-23)
+**Run.** All 150 tasks completed (50 datasets per n), no errors. Wall time per prior on 16 cores (mean): BIC and EBIC relaxed 1.0 / 1.7 / 2.3 min at n = 1k / 5k / 10k; stability 8.5 / 9.3 / 12.1 min (5–9× more). Outputs: `results_reproducibility/summary/` (`repro_summary.csv` holds every number below; figures `Fig_repro_jaccard`, `Fig_repro_frequency`, `Fig_repro_density`).
+
+Reading key: J = mean pairwise Jaccard over the 1,225 pairs of datasets; stable TP = share of true edges selected in ≥ 80% of the 50 datasets; recurrent FP = non-edges selected in ≥ 20% of datasets. True edges: baseline 162, binary effect (x3) 54, continuous effect (x1) 62, null covariate (x2) 0. Pairs of datasets are not independent, so no tests are reported; the boxplots show the spread.
+
+**Baseline, AND** (J / stable TP / recurrent FP; None → Noisy prior):
+
+| Rule | n = 1k | n = 5k | n = 10k |
+|---|---|---|---|
+| BIC relaxed | 0.66 → 0.74 / 0.62 → 0.72 / 0 → 3 | 0.84 → 0.93 / 0.88 → 0.97 / 2 → 2 | 0.94 → 0.96 / 1.00 → 1.00 / 2 → 2 |
+| EBIC relaxed | 0.89 → 0.88 / 0.62 → 0.69 / 0 → 0 | 0.84 → 0.93 / 0.75 → 0.92 / 1 → 2 | 0.94 → 0.98 / 0.98 → 0.99 / 2 → 2 |
+| Stability | 0.93 → 0.88 / 0.62 → 0.72 / 0 → 1 | 0.81 → 0.91 / 0.69 → 0.89 / 0 → 2 | 0.92 → 0.96 / 0.95 → 0.98 / 1 → 2 |
+
+**Baseline, OR:** J 0.43–0.54 (BIC relaxed), 0.76–0.81 (EBIC, stability) at 1k; 0.72–0.90 at 5k–10k. Recurrent FP: BIC relaxed 14–27, EBIC 3–22, stability 1–20 (increasing with n).
+
+**Binary effect (x3), AND:** J 0.07–0.19 at 1k for every rule (stable TP ≤ 0.02); 0.83–0.89 at 5k and 0.93–0.98 at 10k (stable TP 0.94–1.00; no recurrent FP). OR: BIC relaxed J 0.53–0.66 at 5k–10k with 3–10 recurrent FP, EBIC and stability 0.75–0.86 with 0–6.
+
+**Continuous effect (x1):** not reproducible at these n. AND J ≤ 0.004 at 1k, 0.03–0.14 at 5k, 0.17–0.39 at 10k; OR up to 0.40–0.48 at 10k (stable TP 0.10–0.58, highest for BIC relaxed + OR). Recurrent FP 0 for all rules.
+
+**Null covariate (x2):** no recurrent false positives for any rule, n or symmetrisation (J ≤ 0.005). Mean edges per dataset: BIC relaxed AND 1–11, OR 8–43 (largest at 1k); EBIC ≤ 4; stability ≤ 0.5. The false positives of the null component are scattered, not reproducible.
+
+**Density (number of estimated edges, CV across datasets):** baseline CV ≤ 5% for every rule and n (≤ 2.5% at n ≥ 5k with AND); binary effect CV 2–7% at n ≥ 5k, 17–44% at 1k; continuous effect CV 9–67% at n ≥ 5k and > 100% for EBIC / stability at 1k (mostly empty networks).
+
+**Findings.**
+1. **The default (BIC relaxed + AND, n ≥ 5000) is reproducible:** baseline J 0.84–0.96, binary-effect J 0.83–0.93, ≥ 88% of true baseline edges and ≥ 98% of true binary-effect edges selected in ≥ 80% of datasets, ≤ 2 recurrent false positives, edge-count CV ≤ 2.5%.
+2. **Stability selection is not more reproducible than the relaxed criteria at n ≥ 5000** (baseline AND J 0.81–0.96 vs 0.84–0.98), at 5–9× the cost. Its advantage is at n = 1k: J 0.88–0.93 vs 0.66–0.74 for BIC relaxed. This supports the guideline (relaxed BIC by default, stability / EBIC when n is small relative to P).
+3. **High Jaccard ≠ good recovery.** At n = 1k EBIC and stability have J ≈ 0.9 because they reproducibly select the same conservative subset: only 62–72% of true baseline edges are stable, the same as BIC relaxed. Reproducibility must be read with the stable-TP share (or F1).
+4. **The prior improves reproducibility** where TPR is not saturated: baseline AND J +0.04–0.10 at n = 5k for all rules, stable TP +0.09–0.20 (5k) and +0.07–0.10 (1k); binary effect J +0.01–0.10 (OR). Exception: at 1k EBIC / stability J drops slightly (0.89 → 0.88, 0.93 → 0.88) because the prior adds true edges that are not yet selected in every dataset (stable TP 0.62 → 0.69–0.72). The prior does not change the continuous-effect or null components.
+5. **AND over OR for the relaxed BIC is confirmed** from the reproducibility side: OR adds 10–27 recurrent false baseline edges and lowers J by 0.12–0.23. With OR, EBIC and stability are more reproducible than BIC relaxed.
+6. **Covariate effects:** binary effects become reproducible between n = 1k and 5k; continuous effects need n > 10k (consistent with the main study, F1 ≤ 0.7 at 10k).
+7. **The null covariate never produces recurring edges,** so spurious covariate-specific edges do not replicate across samples.
+
+Suggested wording (Supplementary, with `Fig_repro_jaccard` and the table above): *"Across 50 independent datasets drawn from the same network, BIC relaxed with AND symmetrisation recovered nearly the same baseline and binary-effect networks at n ≥ 5000 (mean pairwise Jaccard 0.84–0.96; ≥ 88% of true edges selected in at least 80% of datasets; edge-count CV ≤ 2.5%). Stability selection was not more reproducible in this regime, at 5–9 times the cost, but was at n = 1000. The prior increased reproducibility where recovery was incomplete, and spurious edges on a covariate without effect never recurred across datasets."*
+
+## Ablation: prior on all terms (set up 2026-11-24)
+**Question.** Is it right to apply the prior to the baseline only? The naive alternative applies the same prior weights to every component. This is the experiment behind the paper's first contribution ("selective prior").
+
+**Design.** The same setting as the selection-rule study: p = 100, q = 3, n ∈ {1k, 5k, 10k, 20k}, replications 1–100, the **same datasets as the main study** (`dataset_seed()`), `bic_relaxed`, OR and AND.
+- Arms 1–3 are the main-study fits in `results/`: no prior; noisy prior on the baseline only (prCGGM); perfect prior on the baseline only (prCGGM).
+- Arms 4–5 are new, in `results_ablation/`: noisy prior on all terms; perfect prior on all terms.
+- **Prior on all terms:** the covariate-specific term h × node k gets penalty factor ϑ (1 − W_jk) instead of ϑ. Template option `prior_on_covariates = TRUE` (`ggReg_main_functions.R`, both copies; default FALSE) and `run_task.R --prior_on_covariates TRUE`.
+- **Checks (local, n = 1k, rep 1, nodes 1–4):**
+  - with the option off, the selections reproduce the main study exactly (n_selected and λ per node);
+  - with the option on, the perfect-prior selections change (nodes 2 and 3), and the no-prior ones do not.
+- **What we expected (before the run; see the results below, which differ).** The prior is built from T₀ = Δ₀ + mean(x1)·B1, so it also contains the continuous-effect edges. The binary-effect and null-covariate edges are not in it. With the prior on all terms we expect:
+  - a small gain for the continuous effect;
+  - binary-effect edges outside the prior penalised as before, those at prior pairs favoured;
+  - null-covariate false positives concentrated at prior-supported pairs.
+
+**Files.**
+- `slurm/settings_ablation.csv` (400 rows: tasks 1–100 n = 20k, 101–200 10k, 201–300 5k, 301–400 1k);
+- `slurm/run_ablation.sbatch` (noisy and perfect priors, 16 cores, 1 h);
+- `analyse_ablation.R` → `results_ablation/summary/`:
+  - `ablation_summary.csv`;
+  - `ablation_paired.csv` (all terms minus baseline only, paired Wilcoxon);
+  - `Fig_ablation` (AND) and `Fig_ablation_OR`.
+
+**Cost.** Local: about 6 s per node at n = 1k (2 priors: 2.5 min on 8 cores). On the cluster: about 1–7 min per task, < 100 core-hours in total.
+
+**Submission** (from Simulation_analysis_v2):
+```
+sbatch --array=1-400%50 slurm/run_ablation.sbatch
+# when finished
+Rscript --vanilla analyse_ablation.R results_ablation results
+```
+
+### Ablation: results (full run, 100 replications per n, analysed locally 2026-11-25)
+`analyse_ablation.R results_ablation results`: all 400 tasks complete and paired with the main-study fits on the same datasets. All numbers below are AND means; the differences are all terms minus baseline only, with paired Wilcoxon p < 1e-9 unless stated.
+
+| n | Arm | F1 baseline | F1 binary | F1 continuous | FPR×1000 binary | FPR×1000 continuous | FPR×1000 null |
+|---|---|---|---|---|---|---|---|
+| 1k | No prior | 0.821 | 0.616 | 0.084 | 1.76 | 1.82 | 1.84 |
+| 1k | Noisy, baseline only | 0.905 | 0.627 | 0.071 | 1.35 | 1.60 | 1.56 |
+| 1k | Noisy, all terms | 0.888 | **0.204** | 0.068 | 0.35 | 0.18 | 0.16 |
+| 1k | Perfect, baseline only | 0.958 | 0.654 | 0.080 | 1.75 | 2.16 | 2.16 |
+| 1k | Perfect, all terms | 0.928 | **0.067** | 0.016 | 0.17 | 0.10 | 0.08 |
+| 5k | Noisy, baseline only / all terms | 0.979 / 0.983 | 0.970 / **0.824** | 0.502 / 0.576 | 0.47 / **2.48** | 0.48 / 0.39 | 0.39 / 0.11 |
+| 5k | Perfect, baseline only / all terms | 0.990 / 0.976 | 0.967 / **0.608** | 0.557 / **0.321** | 0.63 / **4.30** | 0.77 / 0.63 | 0.68 / 0.03 |
+| 20k | Noisy, baseline only / all terms | 0.987 / 0.996 | 0.991 / **0.866** | 0.969 / 0.934 | 0.18 / **3.12** | 0.10 / 0.74 | 0.10 / 0.06 |
+| 20k | Perfect, baseline only / all terms | 0.997 / 0.997 | 0.991 / **0.633** | 0.974 / **0.724** | 0.18 / **11.55** | 0.20 / **5.22** | 0.21 / 0.00 |
+
+(The 10k results lie between 5k and 20k; all cells are in `results_ablation/summary/ablation_summary.csv`. With OR the pattern is the same: e.g. perfect prior at 20k, binary F1 0.917 → 0.432 and continuous F1 0.911 → 0.559.)
+
+**Findings**
+1. **Covariate-specific networks are damaged by applying the prior to all terms, at every n.**
+   - Binary-effect F1 falls by 0.12–0.42 with the noisy prior and by 0.33–0.59 with the perfect prior, and does not recover with n: about 0.63 for the perfect prior at 20k, against 0.99 with the selective prior.
+   - Continuous-effect F1 falls by 0.24–0.25 with the perfect prior at n ≥ 5k. This is despite its true edges being in the prior (T₀ = Δ₀ + mean(x1)·B1). With the noisy prior it is mixed: +0.07 at 5k, −0.03 at 20k.
+2. **The failure has two regimes.**
+   - Small n (1k): the covariate terms are over-shrunk. Binary TPR 0.52 → 0.12 (noisy) and 0.58 → 0.04 (perfect), and FPRs go down for every covariate.
+   - Large n (≥ 5k): **the baseline structure leaks into the covariate networks**. Binary FPR×1000 0.18 → 3.1 (noisy) and → 11.6 (perfect) at 20k, and continuous FPR×1000 0.20 → 5.2 (perfect). The perfect-prior binary network has 105 estimated edges against 50 true.
+   - The leak grows with n and is worst with the most informative (perfect) prior. This is the signature of the prior favouring the selection of covariate terms at baseline-prior pairs where the covariate has no effect.
+   - Not verified edge by edge: `evaluation.rds` does not store edge lists. The interpretation follows from the FPR rising with n under the perfect prior while TPR is ≈ 1.
+   - The small-n over-shrinkage is consistent with the pf normalisation (sparsegl rescales the penalty factors to mean 1, so terms outside the prior get pf > 1).
+3. **The baseline network is barely affected.** |ΔF1| ≤ 0.03, largest at n = 1k (perfect −0.030). With the noisy prior, all terms gives a slightly higher baseline F1 at n ≥ 5k (+0.004 to +0.009), with lower FPR. The prior's benefit for the baseline is therefore the same whichever way it is applied. The difference is entirely in the covariate-specific networks.
+4. **The null covariate is not a discriminating test.** All terms gives fewer null false positives (2.16 → 0.08 ×1000 at 1k, perfect), but this is part of the general over-shrinkage of covariate terms and comes with the loss of the true covariate effects. Our expectation of null false positives at prior pairs was wrong for this design.
+5. **The selective prior (prCGGM) is never worse than no prior** on the covariate networks (binary F1 0.627/0.654 vs 0.616 at 1k; ≥ 0.967 vs 0.961 at 5k and above). So it keeps the baseline gain at no cost to the covariate effects.
+
+**Suggested wording (main text, Results, with Fig_ablation_main).** "Restricting the prior to the baseline is essential. When the same prior weights were applied to the covariate-specific terms, the baseline network was essentially unchanged (|ΔF1| ≤ 0.03), but the covariate-specific networks deteriorated at every sample size. At n = 1,000 the binary-effect F1 dropped from 0.65 to 0.07 (perfect prior) because true effects were over-shrunk. At n = 20,000 its false-positive rate increased 60-fold (0.18 to 11.6 per 1,000 pairs) as baseline structure leaked into the covariate networks, and the F1 plateaued at 0.63 instead of 0.99. A more accurate prior made the leakage worse."
+
+**Figures.**
+- `results_ablation/summary/Fig_ablation_main.{png,pdf}` (`fig_ablation_main.R`; 4 panels, AND: baseline F1, binary F1, continuous F1, binary FPR) for main Fig 2;
+- `Fig_ablation` (7 panels, AND) and `Fig_ablation_OR` for the supplementary.

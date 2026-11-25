@@ -925,6 +925,11 @@ GGReg_cov_single_node_processing <- function(
   }
   if (!exists("refit", inherits = FALSE)) refit <- FALSE
   if (!exists("selection_control", inherits = FALSE)) selection_control <- list()
+  # Ablation of the selective prior (paper, Supplementary): with
+  # prior_on_covariates = TRUE the prior weights (1 - W) also multiply the
+  # penalty of the covariate-specific terms (covariate h x node k gets
+  # theta * (1 - W_ik)). Default FALSE: prior on the baseline only (prCGGM).
+  if (!exists("prior_on_covariates", inherits = FALSE)) prior_on_covariates <- FALSE
   n <- nrow(Z0)
   p <- ncol(Z0)
   i <- node_index  # Current node index
@@ -1108,6 +1113,11 @@ GGReg_cov_single_node_processing <- function(
   }
   make_pf <- function(weight) {
     w <- rep(weight, ncol(Xmat))
+    if (isTRUE(prior_on_covariates) && !is.null(covariates)) {
+      # each covariate block holds the same nodes as the baseline block
+      stopifnot(ncol(Xmat) %% length(pf_baseline) == 0)
+      w <- weight * rep(pf_baseline, ncol(Xmat) / length(pf_baseline))
+    }
     w[Xgroup_fit == 1 | is.null(covariates)] <- pf_baseline
     w
   }

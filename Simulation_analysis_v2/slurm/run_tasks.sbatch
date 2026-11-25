@@ -22,6 +22,9 @@
 # Resources (--time, --mem-per-cpu) are set on the command line per block,
 # from the timing test (see README.md, "Submission").
 # Finished tasks are skipped when resubmitted.
+# Optional: SELECTION (default bic_relaxed) and OUT (default results), e.g.
+#   sbatch --array=601-800%50 --export=ALL,OFFSET=0,SELECTION=ebic_relaxed,OUT=results_ebic_relaxed ...
+# Within each p block, array indices 601-800 are the n = 1000 tasks.
 
 cd "$SLURM_SUBMIT_DIR"
 TASK=$(( ${OFFSET:-0} + SLURM_ARRAY_TASK_ID ))
@@ -36,5 +39,6 @@ source /center/healthds/singularity_functions
 
 echo "Task $TASK: n=$N p=$P q=$Q rep=$REP on $SLURM_CPUS_PER_TASK cores ($(hostname))"
 Rscript --vanilla run_task.R --n "$N" --p "$P" --q "$Q" --rep "$REP" \
-  --ncores "$SLURM_CPUS_PER_TASK" --out results
+  --ncores "$SLURM_CPUS_PER_TASK" --selection "${SELECTION:-bic_relaxed}" \
+  --out "${OUT:-results}"
 echo "Task $TASK completed"

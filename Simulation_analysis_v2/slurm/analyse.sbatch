@@ -11,8 +11,9 @@
 # P_VALUES restricts the analysis to some blocks, separated by ":" because
 # --export already splits on commas, e.g.
 #   sbatch --export=ALL,P_VALUES=50:100 slurm/analyse.sbatch
-# Without it all settings found in results/ are summarised.
+# Without it all settings found in results/ are summarised. RES sets the
+# results folder (default results), e.g. --export=ALL,RES=results_ebic_relaxed
 cd "$SLURM_SUBMIT_DIR"
 export LC_ALL=C.UTF-8
 source /center/healthds/singularity_functions
-Rscript --vanilla analyse_results.R results ${P_VALUES}
+Rscript --vanilla analyse_results.R "${RES:-results}" ${P_VALUES}

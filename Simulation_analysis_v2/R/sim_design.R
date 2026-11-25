@@ -50,12 +50,18 @@ covariate_design <- function(q) {
 #'   (precision S Omega S), continuous covariates too (component x sd(x_h)).
 #'
 #' @param ncores Cores used to draw the subjects (one Cholesky per subject)
+#' @param graph_seed Optional seed of the networks (B0 and the covariate
+#'   networks). NULL (default, main study): the networks are drawn from the
+#'   dataset seed, so each replication has its own graph. Given (reproducibility
+#'   experiment): the networks are drawn from graph_seed and only the covariates
+#'   and the subjects come from seed, so datasets with different seeds share the
+#'   same true networks.
 #' @return list(x = standardised expression matrix, covariates = data frame
 #'   (binary covariates as factors with levels 0/1), T0 = baseline target on
 #'   the generating scale (for the prior), truth = named list of true
 #'   components on the scale of the fit, with the template names (Baseline,
 #'   x1, x3_1, ...), info = data frame of the components, config)
-simulate_dataset <- function(n, p, q, seed, eig_margin = 0.1, ncores = 1) {
+simulate_dataset <- function(n, p, q, seed, eig_margin = 0.1, ncores = 1, graph_seed = NULL) {
   set.seed(seed)
   design <- covariate_design(q)
   weights <- function(adj, lo, hi) {
@@ -69,6 +75,10 @@ simulate_dataset <- function(n, p, q, seed, eig_margin = 0.1, ncores = 1) {
   })
   U <- matrix(U, n, q, dimnames = list(NULL, design$name))
 
+  if (!is.null(graph_seed)) {
+    data_state <- get(".Random.seed", envir = globalenv())
+    set.seed(graph_seed)
+  }
   g <- sample_fitness_pl(p, no.of.edges = p, exponent.out = 2.5)
   B0 <- weights(as.matrix(as_adjacency_matrix(g)) > 0, 0.35, 0.5)
   Bh <- lapply(seq_len(q), function(h) {
@@ -78,6 +88,7 @@ simulate_dataset <- function(n, p, q, seed, eig_margin = 0.1, ncores = 1) {
     weights(adj | t(adj), 0.175, 0.25)
   })
   names(Bh) <- design$name
+  if (!is.null(graph_seed)) assign(".Random.seed", data_state, envir = globalenv())
 
   corners <- as.matrix(expand.grid(rep(list(0:1), q)))
   min_eig <- min(apply(corners, 1, function(u) {
@@ -122,7 +133,7 @@ simulate_dataset <- function(n, p, q, seed, eig_margin = 0.1, ncores = 1) {
   }
   ut <- upper.tri(B0)
   list(x = scale(x), covariates = covariates, T0 = T0, truth = truth, info = info,
-       config = list(n = n, p = p, q = q, seed = seed, diagonal = d,
+       config = list(n = n, p = p, q = q, seed = seed, graph_seed = graph_seed, diagonal = d,
                      baseline_edges = sum(B0[ut] != 0),
                      covariate_edges = sapply(Bh, function(m) sum(m[ut] != 0)),
                      target_edges = sum(abs(T0[ut]) > 1e-8)))

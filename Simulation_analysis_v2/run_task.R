@@ -6,6 +6,10 @@
 #   Rscript run_task.R --n 5000 --p 100 --q 3 --rep 1 [--ncores 16]
 #                      [--priors perfect,noisy,none] [--nodes all|1-16]
 #                      [--selection bic_relaxed] [--out results] [--tmp <dir>]
+#                      [--prior_on_covariates FALSE]
+# --prior_on_covariates TRUE: ablation of the selective prior (the prior also
+# weights the penalty of the covariate-specific terms; see README,
+# "Ablation: prior on all terms"). Default FALSE (prCGGM).
 # The node-wise regressions use the template functions
 # (ggReg_main_functions.R): GGReg_cov_single_node_processing() for each node,
 # run in parallel on --ncores cores, and collect_node_results() with OR and
@@ -21,10 +25,12 @@
 #                   data generation time
 
 opt <- list(n = NA, p = NA, q = NA, rep = NA, ncores = NA, priors = "perfect,noisy,none",
-            nodes = "all", selection = "bic_relaxed", out = "results", tmp = tempdir())
+            nodes = "all", selection = "bic_relaxed", out = "results", tmp = tempdir(),
+            prior_on_covariates = "FALSE")
 args <- commandArgs(trailingOnly = TRUE)
 for (k in seq(1, length(args), by = 2)) opt[[sub("^--", "", args[k])]] <- args[k + 1]
 for (v in c("n", "p", "q", "rep", "ncores")) opt[[v]] <- as.integer(opt[[v]])
+opt$prior_on_covariates <- as.logical(opt$prior_on_covariates)
 if (any(is.na(unlist(opt[c("n", "p", "q", "rep")])))) stop("--n, --p, --q and --rep are required")
 if (is.na(opt$ncores)) {
   opt$ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", parallel::detectCores()))
@@ -65,7 +71,7 @@ settings <- list(scr = FALSE, gamma = NULL, scr_matrix = NULL, lambda_prec = NUL
                  selection = opt$selection, refit = TRUE, selection_control = list(),
                  tune_hyperparams = TRUE, asparse_grid = c(0.5, 0.75, 0.9, 0.99),
                  weight_grid = c(0.8, 1, 1.1, 1.3), random_hyper_search = TRUE,
-                 p.rand.hyper = 0.5, K = 5)
+                 p.rand.hyper = 0.5, K = 5, prior_on_covariates = opt$prior_on_covariates)
 
 evaluation <- list(); node_info <- list(); wall <- c()
 for (pr in priors) {
@@ -80,7 +86,7 @@ for (pr in priors) {
     list2env(settings, environment())
     save(Z0, known_ppi, covariates, scr, gamma, scr_matrix, lambda_prec, selection, refit,
          selection_control, tune_hyperparams, asparse_grid, weight_grid,
-         random_hyper_search, p.rand.hyper, K, file = input_data_path)
+         random_hyper_search, p.rand.hyper, K, prior_on_covariates, file = input_data_path)
   })
   t0 <- Sys.time()
   status <- parallel::mclapply(nodes, function(i) {
@@ -125,7 +131,7 @@ node_info <- do.call(rbind, node_info)
 node_info$n <- opt$n; node_info$p <- opt$p; node_info$q <- opt$q; node_info$rep <- opt$rep
 saveRDS(node_info, file.path(out_dir, if (full_run) "nodes.rds" else "nodes_timing.rds"))
 saveRDS(c(sim$config, list(time_data_s = time_data, wall_s = wall, ncores = opt$ncores,
-                           selection = opt$selection)),
+                           selection = opt$selection, prior_on_covariates = opt$prior_on_covariates)),
         file.path(out_dir, if (full_run) "config.rds" else "config_timing.rds"))
 if (full_run) {
   evaluation <- do.call(rbind, evaluation)

@@ -1,13 +1,13 @@
 .DS_Store
 
-T2D_application/
-T2D_application_metab/
+Preprint_T2D_application/
+Preprint_T2D_application_metab/
 T2D_application_prot/
-Simulation_analysis/Simulation_results/
-Simulation_analysis/logs/
-Simulation_analysis/.Rhistory
-Simulation_analysis/test/
-Simulation_analysis/Sim_pipeline_run_full.R
+Preprint_simulation_analysis/Simulation_results/
+Preprint_simulation_analysis/logs/
+Preprint_simulation_analysis/.Rhistory
+Preprint_simulation_analysis/test/
+Preprint_simulation_analysis/Sim_pipeline_run_full.R
 # Exploratory / sensitivity simulations: code and README tracked, outputs ignored
 Add_simulation_analysis/results*/
 Add_simulation_analysis/logs/
@@ -16,6 +16,7 @@ Add_simulation_analysis/*.pdf
 Simulation_analysis_v2/results*/
 Simulation_analysis_v2/logs/
 Simulation_analysis_v2/selection_test/results*/
+Simulation_analysis_v2/paper_figures/
 .DS_Store
 Computational_templates/results/
 Computational_templates/CodeTest.R
